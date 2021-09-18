@@ -175,7 +175,7 @@ pub fn zalloc(pages: usize) -> *mut u8 {
 
     unsafe {
         if !ptr.is_null() {
-            let size = (PAGE_SIZE*pages) / 8; // core:mem::size_of::<u64>()
+            let size = (PAGE_SIZE * pages) / 8; // core:mem::size_of::<u64>()
             let p = ptr as *mut u64;
             for i in 0..size {
                 (*p.add(i)) = 0;

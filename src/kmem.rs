@@ -227,7 +227,6 @@ unsafe impl GlobalAlloc for OsGlobalAlloc {
         // we divide by PAGE_SIZE, we get exactly the number
         // of pages necessary.
         println!("alloc is called");
-        println!("layout size: {}",layout.size());
         kzmalloc(layout.size())
     }
 

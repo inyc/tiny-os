@@ -297,15 +297,16 @@ pub fn map(page_table: &mut Table, va: usize, pa: usize, bits: i64, level: usize
             pte.set_entry(page as i64 >> 2 | EntryBits::Valid.val());
         }
 
-        // let first_entry = pte.to_pa() as *mut Entry;
-        // unsafe {
-        //     pte = first_entry.add(vpn[i]).as_mut().unwrap();
-        // }
-
+        let first_entry = pte.to_pa() as *mut Entry;
         unsafe {
-            let page = (pte.to_pa() as *mut Table).as_mut().unwrap();
-            pte = &mut page.entries[vpn[i]];
+            pte = first_entry.add(vpn[i]).as_mut().unwrap();
         }
+
+        // ok, it's my code, it does cause bug
+        // unsafe {
+        //     let page = (pte.to_pa() as *mut Table).as_mut().unwrap();
+        //     pte = &mut page.entries[vpn[i]];
+        // }
     }
 
     pte.set_entry((ppn as i64) << 10 | bits | EntryBits::Valid.val());

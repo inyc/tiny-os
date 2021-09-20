@@ -1,6 +1,6 @@
 use crate::page::{align_val, zalloc, Table, PAGE_SIZE};
 use core::fmt::Write;
-use core::{mem::size_of, ptr::null_mut}; // for println!
+use core::{mem::size_of, ptr::null_mut}; // for print!
 
 #[repr(usize)]
 enum AllocListFlags {

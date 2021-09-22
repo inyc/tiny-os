@@ -21,8 +21,15 @@ pub enum EntryBits {
     Accessed = 1 << 6,
     Dirty = 1 << 7,
 
+    // Convenience combinations
     ReadWrite = 1 << 1 | 1 << 2,
     ReadExecute = 1 << 1 | 1 << 3,
+    ReadWriteExecute = 1 << 1 | 1 << 2 | 1 << 3,
+
+    // User Convenience Combinations
+    UserReadWrite = 1 << 1 | 1 << 2 | 1 << 4,
+    UserReadExecute = 1 << 1 | 1 << 3 | 1 << 4,
+    UserReadWriteExecute = 1 << 1 | 1 << 2 | 1 << 3 | 1 << 4,
 }
 
 impl EntryBits {

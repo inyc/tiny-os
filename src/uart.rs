@@ -37,10 +37,8 @@ impl Uart {
 
             ptr.add(3).write_volatile(lcr | 1 << 7);
 
-
             ptr.add(0).write_volatile(divisor_least);
             ptr.add(1).write_volatile(divisor_most);
-
 
             ptr.add(3).write_volatile(lcr);
         }

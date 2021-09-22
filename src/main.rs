@@ -95,6 +95,10 @@ fn id_map_range(page_table: &mut page::Table, start: usize, end: usize, bits: i6
     }
 }
 
+extern "C" {
+    fn switch_to_user(frame: usize, mepc: usize, satp: usize) -> !;
+}
+
 #[no_mangle]
 extern "C" fn kinit() {
     // We created kinit, which runs in super-duper mode
@@ -265,6 +269,33 @@ extern "C" fn kinit() {
     println!("Scratch reg = 0x{:x}", cpu::mscratch_read());
     cpu::satp_write(satp_value);
     cpu::satp_fence_asid(0);
+
+    let ret = process::init();
+    println!("Init process created at address 0x{:08x}", ret);
+    // We lower the threshold wall so our interrupts can jump over it.
+    plic::set_threshold(0);
+    // VIRTIO = [1..8]
+    // UART0 = 10
+    // PCIE = [32..35]
+    // Enable the UART interrupt.
+    plic::enable(10);
+    plic::set_priority(10, 1);
+    println!("UART interrupts have been enabled and are awaiting your command.");
+    println!("Getting ready for first process.");
+    println!("Issuing the first context-switch timer.");
+    unsafe {
+        let mtimecmp = 0x0200_4000 as *mut u64;
+        let mtime = 0x0200_bff8 as *const u64;
+        // The frequency given by QEMU is 10_000_000 Hz, so this sets
+        // the next interrupt to fire one second from now.
+        mtimecmp.write_volatile(mtime.read_volatile() + 1_000_000);
+    }
+    let (frame, mepc, satp) = sched::schedule();
+    unsafe {
+        switch_to_user(frame, mepc, satp);
+    }
+    // switch_to_user will not return, so we should never get here
+    println!("WE DIDN'T SCHEDULE?! THIS ISN'T RIGHT!");
 }
 
 #[no_mangle]
@@ -286,6 +317,7 @@ extern "C" fn kinit_hart(hartid: usize) {
     }
 }
 
+// I think now it's not called anymore
 #[no_mangle]
 extern "C" fn kmain() {
     // kmain() starts in supervisor mode. So, we should have the trap
@@ -306,7 +338,7 @@ extern "C" fn kmain() {
         // We know these bytes are valid, so we'll use `unwrap()`.
         // This will MOVE the vector.
 
-		// fuck it
+        // fuck it
         // let sparkle_heart = String::from_utf8(sparkle_heart).unwrap();
         // println!("String = {}", sparkle_heart);
 
@@ -352,5 +384,8 @@ mod cpu;
 mod kmem;
 mod page;
 mod plic;
+mod process;
+mod sched;
+mod syscall;
 mod trap;
 mod uart;

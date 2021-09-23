@@ -1,12 +1,10 @@
-use crate::cpu::TrapFrame;
-use crate::sched::schedule;
-use crate::syscall::do_syscall;
-use crate::{plic, uart};
 use core::fmt::Write;
 
-extern "C" {
-    fn switch_to_user(frame: usize, mepc: usize, satp: usize) -> !;
-}
+use crate::cpu::{TrapFrame, CONTEXT_SWITCH_TIME};
+use crate::plic;
+use crate::rust_switch_to_user;
+use crate::sched::schedule;
+use crate::syscall::do_syscall;
 
 #[no_mangle]
 /// The m_trap stands for "machine trap". Right now, we are handling
@@ -18,7 +16,7 @@ extern "C" fn m_trap(
     tval: usize,
     cause: usize,
     hart: usize,
-    status: usize,
+    _status: usize,
     frame: *mut TrapFrame,
 ) -> usize {
     // We're going to handle all traps in machine mode. RISC-V lets
@@ -40,26 +38,18 @@ extern "C" fn m_trap(
         match cause_num {
             3 => {
                 // Machine software
-                println!("Machine software interrupt CPU#{}", hart);
+                println!("Machine software interrupt CPU #{}", hart);
             }
-            7 => unsafe {
+            7 => {
                 // This is the context-switch timer.
                 // We would typically invoke the scheduler here to pick another
                 // process to run.
                 // Machine timer
                 // println!("CTX");
-                let (frame, mepc, satp) = schedule();
-                let mtimecmp = 0x0200_4000 as *mut u64;
-                let mtime = 0x0200_bff8 as *const u64;
-                // The frequency given by QEMU is 10_000_000 Hz, so this sets
-                // the next interrupt to fire one second from now.
-                // This is much too slow for normal operations, but it gives us
-                // a visual of what's happening behind the scenes.
-                mtimecmp.write_volatile(mtime.read_volatile() + 10_000_000);
-                unsafe {
-                    switch_to_user(frame, mepc, satp);
-                }
-            },
+                let frame = schedule();
+                schedule_next_context_switch(1);
+                rust_switch_to_user(frame);
+            }
             11 => {
                 // Machine external (interrupt from Platform Interrupt Controller (PLIC))
                 // println!("Machine external interrupt CPU#{}", hart);
@@ -67,49 +57,7 @@ extern "C" fn m_trap(
                 // give us None. However, that would mean we got a spurious interrupt, unless we
                 // get an interrupt from a non-PLIC source. This is the main reason that the PLIC
                 // hardwires the id 0 to 0, so that we can use it as an error case.
-                if let Some(interrupt) = plic::next() {
-                    // If we get here, we've got an interrupt from the claim register. The PLIC will
-                    // automatically prioritize the next interrupt, so when we get it from claim, it
-                    // will be the next in priority order.
-                    match interrupt {
-                        10 => {
-                            // Interrupt 10 is the UART interrupt.
-                            // We would typically set this to be handled out of the interrupt context,
-                            // but we're testing here! C'mon!
-                            // We haven't yet used the singleton pattern for my_uart, but remember, this
-                            // just simply wraps 0x1000_0000 (UART).
-                            let mut my_uart = uart::Uart::new(0x1000_0000);
-                            // If we get here, the UART better have something! If not, what happened??
-                            if let Some(c) = my_uart.get() {
-                                // If you recognize this code, it used to be in the lib.rs under kmain(). That
-                                // was because we needed to poll for UART data. Now that we have interrupts,
-                                // here it goes!
-                                match c {
-                                    8 => {
-                                        // This is a backspace, so we
-                                        // essentially have to write a space and
-                                        // backup again:
-                                        print!("{} {}", 8 as char, 8 as char);
-                                    }
-                                    10 | 13 => {
-                                        // Newline or carriage-return
-                                        println!();
-                                    }
-                                    _ => {
-                                        print!("{}", c as char);
-                                    }
-                                }
-                            }
-                        }
-                        // Non-UART interrupts go here and do nothing.
-                        _ => {
-                            println!("Non-UART external interrupt: {}", interrupt);
-                        }
-                    }
-                    // We've claimed it, so now say that we've handled it. This resets the interrupt pending
-                    // and allows the UART to interrupt again. Otherwise, the UART will get "stuck".
-                    plic::complete(interrupt);
-                }
+                plic::handle_interrupt();
             }
             _ => {
                 panic!("Unhandled async trap CPU#{} -> {}\n", hart, cause_num);
@@ -125,6 +73,9 @@ extern "C" fn m_trap(
                     hart, epc, tval
                 );
                 // We need while trues here until we have a functioning "delete from scheduler"
+                // I use while true because Rust will warn us that it looks stupid.
+                // This is what I want so that I remember to remove this and replace
+                // them later.
                 while true {}
             }
             8 => {
@@ -179,4 +130,19 @@ extern "C" fn m_trap(
     };
     // Finally, return the updated program counter
     return_pc
+}
+
+pub const MMIO_MTIMECMP: *mut u64 = 0x0200_4000usize as *mut u64;
+pub const MMIO_MTIME: *const u64 = 0x0200_BFF8 as *const u64;
+
+pub fn schedule_next_context_switch(qm: u16) {
+    // This is much too slow for normal operations, but it gives us
+    // a visual of what's happening behind the scenes.
+    unsafe {
+        MMIO_MTIMECMP.write_volatile(
+            MMIO_MTIME
+                .read_volatile()
+                .wrapping_add(CONTEXT_SWITCH_TIME * qm as u64),
+        );
+    }
 }

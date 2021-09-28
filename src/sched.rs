@@ -1,3 +1,5 @@
+use core::fmt::Write;
+
 use crate::process::{ProcessState, PROCESS_LIST};
 
 pub fn schedule() -> usize {
@@ -19,7 +21,7 @@ pub fn schedule() -> usize {
                     _ => {}
                 }
             }
-            // println!("Scheduling {}", pid);
+            // println!("Scheduling");
             PROCESS_LIST.replace(pl);
             if frame_addr != 0 {
                 // MODE 8 is 39-bit virtual address MMU

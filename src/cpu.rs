@@ -49,6 +49,20 @@ impl TrapFrame {
 	}
 }
 
+// impl TrapFrame {
+// 	pub const fn zero() -> Self {
+// 		TrapFrame { regs:       [0; 32],
+// 		            fregs:      [0; 32],
+// 		            satp:       0,
+// 		            trap_stack: null_mut(),
+// 		             hartid:     0, }
+// 	}
+// }
+
+
+pub static mut KERNEL_TRAP_FRAME: [TrapFrame; 8] =
+	[TrapFrame::new(); 8];
+
 /// The SATP register contains three fields: mode, address space id, and
 /// the first level table address (level 2 for Sv39). This function
 /// helps make the 64-bit register contents based on those three

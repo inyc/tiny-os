@@ -125,6 +125,7 @@ SECTIONS
 	  Again, with PROVIDE, we're providing a readable symbol called _text_end, which is
 	  set to the memory address AFTER .text.init, .text, and .text.*'s have been added.
 	*/
+    . = ALIGN(0x1000);
     PROVIDE(_text_end = .);
 	/*
 	  The portion after the right brace is in an odd format. However, this is telling the

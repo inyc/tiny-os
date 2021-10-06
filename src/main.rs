@@ -57,6 +57,15 @@ macro_rules! println {
     };
 }
 
+#[macro_export]
+macro_rules! panicc {
+    ($fmt:expr) => {
+        print!("panic: ");
+        println!($fmt);
+        loop {}
+    };
+}
+
 // #[no_mangle]
 // extern "C" fn eh_personality() {}
 
@@ -110,8 +119,13 @@ fn rust_switch_to_user(frame: usize) -> ! {
 extern "C" fn kinit() {
     uart::Uart::new(0x1000_0000).init();
     page::init();
-    kmem::init();
-    process::init();
+
+    // kmem::init();
+    kalloc::km_init();
+    vm::kvm_init();
+
+    // process::init();
+
     // We lower the threshold wall so our interrupts can jump over it.
     // Any priority > 0 will be able to be "heard"
     plic::set_threshold(0);
@@ -127,7 +141,9 @@ extern "C" fn kinit() {
     virtio::probe();
 
     // This just tests the block device. We know that it connects backwards (8, 7, ..., 1).
-    let buffer = kmem::kmalloc(1024);
+    // let buffer = kmem::kmalloc(1024);
+    let buffer = kalloc::kalloc() as *mut u8;
+
     // Offset 1024 is the first block, which is the superblock. In the minix 3 file system, the first
     // block is the "boot block", which in our case will be 0.
     block::read(8, buffer, 512, 0);
@@ -166,7 +182,10 @@ extern "C" fn kinit() {
     }
     block::write(8, buffer, 512, 0);
     // Free the testing buffer.
-    kmem::kfree(buffer);
+    // kmem::kfree(buffer);
+    kalloc::kfree(buffer as *mut u64);
+    println!("ok");
+    loop {}
 
     // Map heap allocations
     let root_ptr = kmem::get_page_table();
@@ -437,13 +456,18 @@ extern "C" fn kmain() {
 mod assembly;
 mod block;
 mod cpu;
+mod kalloc;
 mod kmem;
+mod mem_layout;
 mod page;
 mod plic;
 mod process;
+mod riscv;
 mod rng;
 mod sched;
+mod string;
 mod syscall;
 mod trap;
 mod uart;
 mod virtio;
+mod vm;

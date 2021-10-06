@@ -1,3 +1,4 @@
+use crate::kalloc::{kalloc, kfree as kkfree};
 use core::fmt::Write;
 
 use crate::{
@@ -271,7 +272,8 @@ pub fn block_op(dev: usize, buffer: *mut u8, size: u32, offset: u64, write: bool
             // write OUTSIDE of the disk's size. So, we can read capacity from
             // the configuration space to ensure we stay within bounds.
             let blk_request_size = size_of::<Request>();
-            let blk_request = kmalloc(blk_request_size) as *mut Request;
+            // let blk_request = kmalloc(blk_request_size) as *mut Request;
+            let blk_request = kalloc() as *mut Request;
             let desc = Descriptor {
                 addr: &(*blk_request).header as *const Header as u64,
                 len: size_of::<Header>() as u32,
@@ -319,6 +321,8 @@ pub fn block_op(dev: usize, buffer: *mut u8, size: u32, offset: u64, write: bool
             bdev.dev
                 .add(MmioOffsets::QueueNotify.scale32())
                 .write_volatile(0);
+
+            kkfree(blk_request as *mut u64);
         }
     }
 }

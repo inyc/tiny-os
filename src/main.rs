@@ -117,6 +117,7 @@ fn rust_switch_to_user(frame: usize) -> ! {
 // ///////////////////////////////////
 #[no_mangle]
 extern "C" fn kinit() {
+    // test
     uart::Uart::new(0x1000_0000).init();
     page::init();
 

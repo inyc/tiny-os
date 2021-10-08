@@ -46,12 +46,13 @@ _start:
 	# Do not allow interrupts while running kinit
 	csrw	mie, zero
 	# Machine's exception program counter (MEPC) is set to `kinit`.
-	la		t1, kinit
-	csrw	mepc, t1
+	#la		t1, kinit
+	#csrw	mepc, t1
 	# Set the return address to get us into supervisor mode
-	la		ra, 2f
+	#la		ra, 2f
 	# We use mret here so that the mstatus register is properly updated.
-	mret
+	#mret
+	call kinit
 2:
 	# We set the return address (ra above) to this label. When kinit() is finished
 	# in Rust, it will return here.

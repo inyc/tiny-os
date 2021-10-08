@@ -70,6 +70,18 @@ pub const fn build_satp(mode: SatpMode, asid: usize, addr: usize) -> usize {
     (mode as usize) << 60 | (asid & 0xffff) << 44 | (addr >> 12) & 0xff_ffff_ffff
 }
 
+pub fn w_medeleg(x: u64) {
+    unsafe {
+        asm!("csrw medeleg, {}",in(reg) x);
+    }
+}
+
+pub fn w_mideleg(x: u64) {
+    unsafe {
+        asm!("csrw mideleg, {}",in(reg) x);
+    }
+}
+
 pub fn mhartid_read() -> usize {
     unsafe {
         let rval;

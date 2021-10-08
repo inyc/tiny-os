@@ -1,11 +1,11 @@
 use crate::kalloc::kalloc;
 use crate::mem_layout::{KERN_BASE, PHY_STOP, PLIC, UART, VIRTO};
+use crate::proc::proc_map_stacks;
 use crate::riscv::{
     pa_to_pte, page_round_down, pte_to_pa, vpn, PageTable, Pte, MAX_VA, PAGE_SIZE, PTE_R, PTE_V,
     PTE_W, PTE_X,
 };
 use crate::string::mem_set;
-use core::convert::TryInto;
 use core::fmt::Write;
 use core::ptr::null_mut;
 
@@ -45,6 +45,8 @@ fn kvm_make() -> PageTable {
         );
     }
 
+    proc_map_stacks(kpg_tbl);
+
     kpg_tbl
 }
 
@@ -83,7 +85,7 @@ fn walk(mut page_table: PageTable, va: u64, alloc: i32) -> *mut Pte {
     unsafe { page_table.add(vpn(0, va) as usize) }
 }
 
-fn kvm_map(kpgtbl: PageTable, va: u64, pa: u64, size: u64, perm: u64) {
+pub fn kvm_map(kpgtbl: PageTable, va: u64, pa: u64, size: u64, perm: u64) {
     if map_pages(kpgtbl, va, size, pa, perm) != 0 {
         panicc!("kvm_map");
     }

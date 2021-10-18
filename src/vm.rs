@@ -1,9 +1,9 @@
 use crate::kalloc::kalloc;
-use crate::mem_layout::{KERN_BASE, PHY_STOP, PLIC, UART, VIRTO};
+use crate::mem_layout::{KERN_BASE, PHY_STOP, PLIC, UART, VIRTIO};
 use crate::proc::proc_map_stacks;
 use crate::riscv::{
-    pa_to_pte, page_round_down, pte_to_pa, vpn, PageTable, Pte, MAX_VA, PAGE_SIZE, PTE_R, PTE_V,
-    PTE_W, PTE_X,
+    make_satp, pa_to_pte, page_round_down, pte_to_pa, sfence_vma, vpn, wsatp, PageTable, Pte,
+    MAX_VA, PAGE_SIZE, PTE_R, PTE_U, PTE_V, PTE_W, PTE_X,
 };
 use crate::string::mem_set;
 use core::fmt::Write;
@@ -21,7 +21,7 @@ fn kvm_make() -> PageTable {
 
     kvm_map(kpg_tbl, UART, UART, PAGE_SIZE, PTE_R | PTE_W);
 
-    kvm_map(kpg_tbl, VIRTO, VIRTO, PAGE_SIZE, PTE_R | PTE_W);
+    kvm_map(kpg_tbl, VIRTIO, VIRTIO, PAGE_SIZE, PTE_R | PTE_W);
 
     kvm_map(kpg_tbl, PLIC, PLIC, 0x400000, PTE_R | PTE_W);
 
@@ -56,6 +56,13 @@ pub fn kvm_init() {
     }
 }
 
+pub fn kvm_init_hart() {
+    unsafe {
+        wsatp(make_satp(KERNEL_PAGE_TABLE as u64));
+    }
+    sfence_vma();
+}
+
 fn walk(mut page_table: PageTable, va: u64, alloc: i32) -> *mut Pte {
     if va >= MAX_VA {
         panicc!("walk");
@@ -83,6 +90,28 @@ fn walk(mut page_table: PageTable, va: u64, alloc: i32) -> *mut Pte {
     }
 
     unsafe { page_table.add(vpn(0, va) as usize) }
+}
+
+fn walk_addr(page_table: PageTable, va: u64) -> u64 {
+    if va >= MAX_VA {
+        return 0;
+    }
+
+    let pte = walk(page_table, va, 0);
+    if pte.is_null() {
+        return 0;
+    }
+
+    unsafe {
+        if (*pte) & PTE_V == 0 {
+            return 0;
+        }
+        // if (*pte) & PTE_U == 0 {
+        //     return 0;
+        // }
+
+        pte_to_pa(*pte)
+    }
 }
 
 pub fn kvm_map(kpgtbl: PageTable, va: u64, pa: u64, size: u64, perm: u64) {

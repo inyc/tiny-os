@@ -28,31 +28,54 @@ _start:
 	bnez	t0, 3f
 
 	# Set all bytes in the BSS section to zero.
-	la 		a0, _bss_start
-	la		a1, _bss_end
-	bgeu	a0, a1, 2f
+	#la 		a0, _bss_start
+	#la		a1, _bss_end
+	#bgeu	a0, a1, 2f
 1:
-	sd		zero, (a0)
-	addi	a0, a0, 8
-	bltu	a0, a1, 1b
+	#sd		zero, (a0)
+	#addi	a0, a0, 8
+	#bltu	a0, a1, 1b
 2:
 	# The stack grows from bottom to top, so we put the stack pointer
 	# to the very end of the stack range.
 	la		sp, _stack_end
+
 	# Setting `mstatus` register:
-	# 0b01 << 11: Machine's previous protection mode is 2 (MPP=2).
-	li		t0, 0b11 << 11
+	# 0b01 << 11: Machine's previous protection mode is 2 (MPP=2). # out of date
+	#li		t0, 0b11 << 11
+	#csrw	mstatus, t0
+
+	# set the previous mode to s mode for mret
+	csrr	t0, mstatus
+	li		t1, 3 << 11
+	not		t1, t1
+	and		t0, t0, t1
+	li		t1, 1 << 11
+	or		t0, t0, t1
 	csrw	mstatus, t0
+
 	# Do not allow interrupts while running kinit
-	csrw	mie, zero
+	#csrw	mie, zero
+
 	# Machine's exception program counter (MEPC) is set to `kinit`.
-	#la		t1, kinit
-	#csrw	mepc, t1
+	la		t1, kinit
+	csrw	mepc, t1
+
+	# delegate all interrupts and exceptions to s mode
+	li		t0, 0xffff
+	csrw	medeleg, t0
+	csrw	mideleg, t0
+	csrr	t0, sie
+	ori		t0, t0, 1 << 9
+	ori		t0, t0, 1 << 5
+	ori		t0, t0, 1 << 1
+	csrw	sie, t0
+
 	# Set the return address to get us into supervisor mode
 	#la		ra, 2f
 	# We use mret here so that the mstatus register is properly updated.
-	#mret
-	call kinit
+	mret
+	#call kinit
 2:
 	# We set the return address (ra above) to this label. When kinit() is finished
 	# in Rust, it will return here.
@@ -96,6 +119,7 @@ _start:
 	mret
 
 3:
+	j 3b
 
 	# Parked harts go here. We need to set these
 	# to only awaken if it receives a software interrupt,

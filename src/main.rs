@@ -117,16 +117,36 @@ fn rust_switch_to_user(frame: usize) -> ! {
 // ///////////////////////////////////
 #[no_mangle]
 extern "C" fn kinit() {
+    println!("in kinit, s mode");
+
     // test
     uart::Uart::new(0x1000_0000).init();
-    page::init();
+    // page::init();
 
     // kmem::init();
-    kalloc::km_init();
-    vm::kvm_init();
+    kalloc::km_init(); // set kmem.free_list
+    vm::kvm_init(); // set kernel page table
+    vm::kvm_init_hart(); // write satp
+    proc::proc_init(); // set proc.kstack
+    trap::trap_init_hart(); // set stvec
 
+    let val:u64;
+    unsafe{
+        asm!("csrr {},stvec",out(reg) val);
+    }
+    println!("0x{:x}",val);
+    println!("0x{:x}",trap::kernel_vec as u64);
+    unsafe{
+        println!("0x{:x}",TEXT_END);
+        println!("0x{:x}",RODATA_END);
+        println!("0x{:x}",BSS_END);
+        println!("0x{:x}",HEAP_START);
+        // trap::kernel_vec();
+    }
+    
+    
     // process::init();
-
+    
     // We lower the threshold wall so our interrupts can jump over it.
     // Any priority > 0 will be able to be "heard"
     plic::set_threshold(0);
@@ -138,6 +158,11 @@ extern "C" fn kinit() {
         plic::enable(i);
         plic::set_priority(i, 1);
     }
+
+    println!("ok");
+
+    loop {}
+
     // Set up virtio. This requires a working heap and page-grained allocator.
     virtio::probe();
 
@@ -432,17 +457,17 @@ extern "C" fn kmain() {
     // If we get here, the Box, vec, and String should all be freed since
     // they go out of scope. This calls their "Drop" trait.
 
-    // // Let's set up the interrupt system via the PLIC. We have to set the threshold to something
-    // // that won't mask all interrupts.
-    // println!("Setting up interrupts and PLIC...");
-    // // We lower the threshold wall so our interrupts can jump over it.
-    // plic::set_threshold(0);
-    // // VIRTIO = [1..8]
-    // // UART0 = 10
-    // // PCIE = [32..35]
-    // // Enable the UART interrupt.
-    // plic::enable(10);
-    // plic::set_priority(10, 1);
+    // Let's set up the interrupt system via the PLIC. We have to set the threshold to something
+    // that won't mask all interrupts.
+    println!("Setting up interrupts and PLIC...");
+    // We lower the threshold wall so our interrupts can jump over it.
+    plic::set_threshold(0);
+    // VIRTIO = [1..8]
+    // UART0 = 10
+    // PCIE = [32..35]
+    // Enable the UART interrupt.
+    plic::enable(10);
+    plic::set_priority(10, 1);
 
     // trap::schedule_next_context_switch(1);
     // let frame_addr=sched::schedule();

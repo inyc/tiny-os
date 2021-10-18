@@ -2,7 +2,7 @@ use crate::riscv::{MAX_VA, PAGE_SIZE};
 
 pub const UART: u64 = 0x1000_0000;
 
-pub const VIRTO: u64 = 0x1000_1000;
+pub const VIRTIO: u64 = 0x1000_1000;
 
 pub const PLIC: u64 = 0x0c00_0000;
 

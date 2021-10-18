@@ -1,3 +1,59 @@
+
+pub const SSTATUS_SIE:u64=1<<1;
+pub const SSTATUS_SPP:u64=1<<8; // s mode - 1, u mode - 0
+
+pub fn rsstatus()->u64{
+    let x:u64;
+    unsafe{
+        asm!("csrr {}, sstatus", out(reg) x);
+    }
+    x
+}
+
+pub fn rscause()->u64{
+    let x:u64;
+    unsafe{
+        asm!("csrr {}, scause", out(reg) x);
+    }
+    x
+}
+
+
+pub fn rsepc()->u64{
+    let x:u64;
+    unsafe{
+        asm!("csrr {}, sepc", out(reg) x);
+    }
+    x
+}
+
+pub fn wstvec(x:u64){
+    unsafe{
+        asm!("csrw stvec, {}", in(reg) x);
+    }
+}
+
+// set satp MODE field, where 8 means Sv39
+pub const SATP_SV39: u64 = 8 << 60;
+
+pub const fn make_satp(page_table: u64) -> u64 {
+    SATP_SV39 | (page_table >> 12)
+}
+
+pub fn wsatp(x: u64) {
+    unsafe {
+        asm!("csrw satp, {}", in(reg) x);
+    }
+}
+
+pub fn sfence_vma() {
+    unsafe {
+        // rs1=x0 and rs2=x0, orders all reads and writes
+        // made to any level of the page tables, for all address spaces
+        asm!("sfence.vma zero, zero");
+    }
+}
+
 pub const MAX_VA: u64 = 1 << (9 + 9 + 9 + 12 - 1);
 
 pub const PAGE_SIZE: u64 = 4096;

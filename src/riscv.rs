@@ -1,34 +1,40 @@
-
-pub const SSTATUS_SIE:u64=1<<1;
-pub const SSTATUS_SPP:u64=1<<8; // s mode - 1, u mode - 0
-
-pub fn rsstatus()->u64{
+pub fn rtp()->u64{
     let x:u64;
     unsafe{
+        asm!("mv {}, tp", out(reg) x);
+    }
+    x
+}
+
+pub const SSTATUS_SIE: u64 = 1 << 1;
+pub const SSTATUS_SPP: u64 = 1 << 8; // s mode - 1, u mode - 0
+
+pub fn rsstatus() -> u64 {
+    let x: u64;
+    unsafe {
         asm!("csrr {}, sstatus", out(reg) x);
     }
     x
 }
 
-pub fn rscause()->u64{
-    let x:u64;
-    unsafe{
+pub fn rscause() -> u64 {
+    let x: u64;
+    unsafe {
         asm!("csrr {}, scause", out(reg) x);
     }
     x
 }
 
-
-pub fn rsepc()->u64{
-    let x:u64;
-    unsafe{
+pub fn rsepc() -> u64 {
+    let x: u64;
+    unsafe {
         asm!("csrr {}, sepc", out(reg) x);
     }
     x
 }
 
-pub fn wstvec(x:u64){
-    unsafe{
+pub fn wstvec(x: u64) {
+    unsafe {
         asm!("csrw stvec, {}", in(reg) x);
     }
 }

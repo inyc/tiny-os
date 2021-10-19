@@ -2,11 +2,11 @@ use core::fmt::Write;
 
 use crate::cpu::{TrapFrame, CONTEXT_SWITCH_TIME};
 use crate::plic;
+use crate::riscv::{rscause, rsepc, rsstatus, wstvec, SSTATUS_SIE, SSTATUS_SPP};
 use crate::rust_switch_to_user;
 use crate::sched::schedule;
 use crate::syscall::do_syscall;
-use crate::riscv::{wstvec,rsstatus,rscause,rsepc,SSTATUS_SPP,SSTATUS_SIE};
-use crate::uart::{Uart};
+use crate::uart::Uart;
 
 #[no_mangle]
 /// The m_trap stands for "machine trap". Right now, we are handling
@@ -149,42 +149,39 @@ pub fn schedule_next_context_switch(qm: u16) {
     }
 }
 
-
 // the above is sgmarz_code
 
-extern "C"{
+extern "C" {
     pub fn kernel_vec();
 }
 
-pub fn trap_init_hart(){
+pub fn trap_init_hart() {
     wstvec(kernel_vec as u64);
 }
 
 #[no_mangle]
-extern "C" fn kernel_trap(){
-    let sstatus=rsstatus();
-    let scause=rscause();
-    let sepc=rsepc();
+extern "C" fn kernel_trap() {
+    let sstatus = rsstatus();
+    let scause = rscause();
+    let sepc = rsepc();
 
-    if sstatus&SSTATUS_SPP==0{
+    if sstatus & SSTATUS_SPP == 0 {
         panicc!("kernel trap: not from s mode");
     }
-    if sstatus&SSTATUS_SIE!=0{
+    if sstatus & SSTATUS_SIE != 0 {
         panicc!("kernel trap: interrupts not enabled");
     }
 
-
-    match scause&0xfff{
-        9=>{
+    match scause & 0xfff {
+        9 => {
             println!("get");
             plic::handle_interrupt();
         }
-        _=>{
+        _ => {
             print!(".");
-            loop{}
+            loop {}
         }
     }
-
 
     // let mut u=Uart::new(0x1000_0000);
     // if let Some(x)=u.get(){

@@ -42,8 +42,16 @@ _start:
 
 	# Setting `mstatus` register:
 	# 0b01 << 11: Machine's previous protection mode is 2 (MPP=2). # out of date
-	#li		t0, 0b11 << 11
-	#csrw	mstatus, t0
+	li		t0, 0b11 << 11
+	csrw	mstatus, t0
+
+		la		t2, m_trap_vector
+	csrw	mtvec, t2
+
+		la		t1, kinit
+	csrw	mepc, t1
+
+	mret
 
 	# set the previous mode to s mode for mret
 	csrr	t0, mstatus
@@ -70,6 +78,9 @@ _start:
 	ori		t0, t0, 1 << 5
 	ori		t0, t0, 1 << 1
 	csrw	sie, t0
+
+	csrr	t0, mhartid
+	mv		tp, t0
 
 	# Set the return address to get us into supervisor mode
 	#la		ra, 2f

@@ -117,6 +117,34 @@ fn rust_switch_to_user(frame: usize) -> ! {
 // ///////////////////////////////////
 #[no_mangle]
 extern "C" fn kinit() {
+    println!("in kinit, m mode");
+plic::set_threshold(0);
+    // VIRTIO = [1..8]
+    // UART0 = 10
+    // PCIE = [32..35]
+    // Enable PLIC interrupts.
+    // for i in 1..=10 {
+    //     plic::enable(i);
+    //     plic::set_priority(i, 1);
+    // }
+
+    //     let mut u=uart::Uart::new(0x1000_0000);
+    // loop{
+
+    //     if let Some(x)=u.get(){
+    //         print!("{}",x as char);
+    //     }
+    // }
+
+    plic::enable(10);
+    plic::set_priority(10, 1);
+
+    loop {
+        // unsafe {
+        //     asm!("wfi");
+        // }
+    }
+
     println!("in kinit, s mode");
 
     // test
@@ -130,38 +158,59 @@ extern "C" fn kinit() {
     proc::proc_init(); // set proc.kstack
     trap::trap_init_hart(); // set stvec
 
-    let val:u64;
-    unsafe{
+    let val: u64;
+    unsafe {
         asm!("csrr {},stvec",out(reg) val);
     }
-    println!("0x{:x}",val);
-    println!("0x{:x}",trap::kernel_vec as u64);
-    unsafe{
-        println!("0x{:x}",TEXT_END);
-        println!("0x{:x}",RODATA_END);
-        println!("0x{:x}",BSS_END);
-        println!("0x{:x}",HEAP_START);
+    println!("0x{:x}", val);
+    println!("0x{:x}", trap::kernel_vec as u64);
+    unsafe {
+        println!("0x{:x}", TEXT_END);
+        println!("0x{:x}", RODATA_END);
+        println!("0x{:x}", BSS_END);
+        println!("0x{:x}", HEAP_START);
         // trap::kernel_vec();
     }
-    
-    
+
     // process::init();
-    
+
     // We lower the threshold wall so our interrupts can jump over it.
     // Any priority > 0 will be able to be "heard"
-    plic::set_threshold(0);
+    // plic::set_threshold(0);
     // VIRTIO = [1..8]
     // UART0 = 10
     // PCIE = [32..35]
     // Enable PLIC interrupts.
-    for i in 1..=10 {
-        plic::enable(i);
-        plic::set_priority(i, 1);
-    }
+    // for i in 1..=10 {
+    //     plic::enable(i);
+    //     plic::set_priority(i, 1);
+    // }
+
+    //     let mut u=uart::Uart::new(0x1000_0000);
+    // loop{
+
+    //     if let Some(x)=u.get(){
+    //         print!("{}",x as char);
+    //     }
+    // }
+
+    // plic::enable(10);
+    // plic::set_priority(10, 1);
+    plic::plic_init_hart();
+
+    unsafe{
+
+        let v = 0x0 as *mut u64;
+        v.write_volatile(0);
+    }   
 
     println!("ok");
 
-    loop {}
+    loop {
+        unsafe {
+            asm!("wfi");
+        }
+    }
 
     // Set up virtio. This requires a working heap and page-grained allocator.
     virtio::probe();

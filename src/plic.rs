@@ -1,3 +1,4 @@
+use crate::mem_layout::{plic_senable, plic_spriority, PLIC, UART_IRQ};
 use crate::uart::Uart;
 use crate::virtio;
 
@@ -154,5 +155,15 @@ pub fn handle_interrupt() {
         // We've claimed it, so now say that we've handled it. This resets the interrupt pending
         // and allows the UART to interrupt again. Otherwise, the UART will get "stuck".
         complete(interrupt);
+    }
+}
+
+// above is sgmarz code
+
+pub fn plic_init_hart() {
+    unsafe {
+        *((PLIC + UART_IRQ * 4) as *mut u32) = 1;
+        *(plic_senable(0) as *mut u32) = 1 << UART_IRQ;
+        *(plic_spriority(0) as *mut u32) = 0;
     }
 }

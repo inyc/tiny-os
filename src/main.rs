@@ -139,16 +139,6 @@ plic::set_threshold(0);
     plic::enable(10);
     plic::set_priority(10, 1);
 
-unsafe{
-            // let v = 0x0 as *mut u64;
-        // v.write_volatile(0);
-}
-
-    loop {
-        // unsafe {
-        //     asm!("wfi");
-        // }
-    }
 
     // test
     uart::Uart::new(0x1000_0000).init();
@@ -160,6 +150,17 @@ unsafe{
     vm::kvm_init_hart(); // write satp
     proc::proc_init(); // set proc.kstack
     trap::trap_init_hart(); // set stvec
+
+
+    unsafe{
+        let v = 0x0 as *mut u64;
+    v.write_volatile(0);
+}
+loop {
+    // unsafe {
+    //     asm!("wfi");
+    // }
+}
 
     let val: u64;
     unsafe {

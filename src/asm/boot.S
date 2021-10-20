@@ -42,16 +42,8 @@ _start:
 
 	# Setting `mstatus` register:
 	# 0b01 << 11: Machine's previous protection mode is 2 (MPP=2). # out of date
-	li		t0, 0b11 << 11
-	csrw	mstatus, t0
-
-		la		t2, m_trap_vector
-	csrw	mtvec, t2
-
-		la		t1, kinit
-	csrw	mepc, t1
-
-	mret
+	#li		t0, 0b11 << 11
+	#csrw	mstatus, t0
 
 	# set the previous mode to s mode for mret
 	csrr	t0, mstatus

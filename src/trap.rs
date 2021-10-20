@@ -169,7 +169,7 @@ extern "C" fn kernel_trap() {
         panicc!("kernel trap: not from s mode");
     }
     if sstatus & SSTATUS_SIE != 0 {
-        panicc!("kernel trap: interrupts not enabled");
+        panicc!("kernel trap: interrupts enabled");
     }
 
     match scause & 0xfff {

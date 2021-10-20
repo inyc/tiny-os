@@ -117,7 +117,7 @@ fn rust_switch_to_user(frame: usize) -> ! {
 // ///////////////////////////////////
 #[no_mangle]
 extern "C" fn kinit() {
-    println!("in kinit, m mode");
+    println!("in kinit, s mode");
 plic::set_threshold(0);
     // VIRTIO = [1..8]
     // UART0 = 10
@@ -139,13 +139,16 @@ plic::set_threshold(0);
     plic::enable(10);
     plic::set_priority(10, 1);
 
+unsafe{
+            // let v = 0x0 as *mut u64;
+        // v.write_volatile(0);
+}
+
     loop {
         // unsafe {
         //     asm!("wfi");
         // }
     }
-
-    println!("in kinit, s mode");
 
     // test
     uart::Uart::new(0x1000_0000).init();

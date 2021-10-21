@@ -7,6 +7,10 @@ pub const VIRTIO: u64 = 0x1000_1000;
 pub const VIRTIO_IRQ:u64=1;
 
 pub const PLIC: u64 = 0x0c00_0000;
+pub const fn plic_sclaim(hart:u64)->u64{
+    PLIC+0x201004+hart*0x2000
+}
+
 
 pub const fn plic_senable(hart: u64) -> u64 {
     PLIC + 0x2080 + hart * 0x100

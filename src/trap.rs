@@ -174,11 +174,11 @@ extern "C" fn kernel_trap() {
 
     match scause & 0xfff {
         9 => {
-            println!("get");
+            print!(".");
             plic::handle_interrupt();
         }
         _ => {
-            print!(".");
+            print!("/");
             loop {}
         }
     }

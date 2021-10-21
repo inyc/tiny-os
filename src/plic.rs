@@ -1,4 +1,4 @@
-use crate::mem_layout::{plic_senable, plic_spriority, PLIC, UART_IRQ};
+use crate::mem_layout::{plic_senable, plic_spriority, PLIC, UART_IRQ,plic_sclaim};
 use crate::uart::Uart;
 use crate::virtio;
 
@@ -110,7 +110,7 @@ pub fn set_priority(id: u32, prio: u8) {
 }
 
 pub fn handle_interrupt() {
-    if let Some(interrupt) = next() {
+    if let Some(interrupt) = plic_claim() {
         // If we get here, we've got an interrupt from the claim register. The PLIC will
         // automatically prioritize the next interrupt, so when we get it from claim, it
         // will be the next in priority order.
@@ -165,5 +165,22 @@ pub fn plic_init_hart() {
         *((PLIC + UART_IRQ * 4) as *mut u32) = 1;
         *(plic_senable(0) as *mut u32) = 1 << UART_IRQ;
         *(plic_spriority(0) as *mut u32) = 0;
+    }
+}
+
+pub fn plic_claim() -> Option<u32> {
+    let claim_reg = plic_sclaim(0) as *const u32;
+    let claim_no;
+    // The claim register is filled with the highest-priority, enabled interrupt.
+    unsafe {
+        claim_no = claim_reg.read_volatile();
+    }
+    if claim_no == 0 {
+        // The interrupt 0 is hardwired to 0, which tells us that there is no
+        // interrupt to claim, hence we return None.
+        None
+    } else {
+        // If we get here, we've gotten a non-0 interrupt.
+        Some(claim_no)
     }
 }

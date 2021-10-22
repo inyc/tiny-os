@@ -1,11 +1,3 @@
-pub fn rtp()->u64{
-    let x:u64;
-    unsafe{
-        asm!("mv {}, tp", out(reg) x);
-    }
-    x
-}
-
 pub const SSTATUS_SIE: u64 = 1 << 1;
 pub const SSTATUS_SPP: u64 = 1 << 8; // s mode - 1, u mode - 0
 
@@ -29,6 +21,14 @@ pub fn rsepc() -> u64 {
     let x: u64;
     unsafe {
         asm!("csrr {}, sepc", out(reg) x);
+    }
+    x
+}
+
+pub fn rstval() -> u64 {
+    let x: u64;
+    unsafe {
+        asm!("csrr {}, stval", out(reg) x);
     }
     x
 }
@@ -58,6 +58,14 @@ pub fn sfence_vma() {
         // made to any level of the page tables, for all address spaces
         asm!("sfence.vma zero, zero");
     }
+}
+
+pub fn rtp() -> u64 {
+    let x: u64;
+    unsafe {
+        asm!("mv {}, tp", out(reg) x);
+    }
+    x
 }
 
 pub const MAX_VA: u64 = 1 << (9 + 9 + 9 + 12 - 1);

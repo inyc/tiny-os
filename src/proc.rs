@@ -1,10 +1,14 @@
 use crate::kalloc::kalloc;
 use crate::mem_layout::kstack;
 use crate::param::NPROC;
-use crate::riscv::{PageTable, PAGE_SIZE, PTE_R, PTE_W};
+use crate::riscv::{rtp, PageTable, PAGE_SIZE, PTE_R, PTE_W};
 use crate::vm::kvm_map;
 use core::fmt::Write;
 use core::ptr::null_mut;
+
+pub fn cpu_id() -> u64 {
+    rtp()
+}
 
 #[repr(C)]
 struct TrapFrame {}

@@ -62,3 +62,29 @@ impl Uart {
         }
     }
 }
+
+// above is sgmarz code
+pub fn uart_intr(){
+    let mut my_uart = Uart::new(0x1000_0000);
+    // If we get here, the UART better have something! If not, what happened??
+    if let Some(c) = my_uart.get() {
+        // If you recognize this code, it used to be in the lib.rs under kmain(). That
+        // was because we needed to poll for UART data. Now that we have interrupts,
+        // here it goes!
+        match c {
+            8 => {
+                // This is a backspace, so we
+                // essentially have to write a space and
+                // backup again:
+                print!("{} {}", 8 as char, 8 as char);
+            }
+            10 | 13 => {
+                // Newline or carriage-return
+                println!();
+            }
+            _ => {
+                print!("{}", c as char);
+            }
+        }
+    }
+}

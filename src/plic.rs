@@ -1,5 +1,6 @@
-use crate::mem_layout::{plic_senable, plic_spriority, PLIC, UART_IRQ,plic_sclaim};
-use crate::uart::Uart;
+use crate::mem_layout::{plic_sclaim, plic_senable, plic_spriority, PLIC, UART_IRQ};
+use crate::proc::cpu_id;
+use crate::uart::{Uart,uart_intr};
 use crate::virtio;
 
 use core::fmt::Write;
@@ -160,27 +161,54 @@ pub fn handle_interrupt() {
 
 // above is sgmarz code
 
-pub fn plic_init_hart() {
+pub fn plic_init() {
     unsafe {
+        // set desired IRQ priorities
         *((PLIC + UART_IRQ * 4) as *mut u32) = 1;
-        *(plic_senable(0) as *mut u32) = 1 << UART_IRQ;
-        *(plic_spriority(0) as *mut u32) = 0;
     }
 }
 
-pub fn plic_claim() -> Option<u32> {
-    let claim_reg = plic_sclaim(0) as *const u32;
-    let claim_no;
-    // The claim register is filled with the highest-priority, enabled interrupt.
+pub fn plic_init_hart() {
+    let hart = cpu_id();
     unsafe {
-        claim_no = claim_reg.read_volatile();
+        *(plic_senable(hart) as *mut u32) = 1 << UART_IRQ;
+        // set this hart's S-mode priority threshold
+        *(plic_spriority(hart) as *mut u32) = 0;
     }
-    if claim_no == 0 {
-        // The interrupt 0 is hardwired to 0, which tells us that there is no
-        // interrupt to claim, hence we return None.
-        None
-    } else {
-        // If we get here, we've gotten a non-0 interrupt.
-        Some(claim_no)
+}
+
+fn plic_claim() -> Option<u32> {
+    let hart = cpu_id();
+
+    let irq: u32;
+    unsafe {
+        irq = *(plic_sclaim(hart) as *const u32);
+    }
+
+    match irq {
+        0 => None,
+        _ => Some(irq),
+    }
+}
+
+fn plic_complete(irq: u32) {
+    let hart = cpu_id();
+    unsafe {
+        *(plic_sclaim(hart) as *mut u32) = irq;
+    }
+}
+
+pub fn plic_intr() {
+    if let Some(irq) = plic_claim() {
+        match irq as u64 {
+            UART_IRQ => {
+                uart_intr();
+            }
+            _ => {
+                println!("unexpected interrupt id irq={}", irq);
+            }
+        }
+
+        plic_complete(irq);
     }
 }

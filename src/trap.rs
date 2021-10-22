@@ -1,8 +1,8 @@
 use core::fmt::Write;
 
 use crate::cpu::{TrapFrame, CONTEXT_SWITCH_TIME};
-use crate::plic;
-use crate::riscv::{rscause, rsepc, rsstatus, wstvec, SSTATUS_SIE, SSTATUS_SPP};
+use crate::plic::{handle_interrupt, plic_intr};
+use crate::riscv::{rscause, rsepc, rsstatus, rstval, wstvec, SSTATUS_SIE, SSTATUS_SPP};
 use crate::rust_switch_to_user;
 use crate::sched::schedule;
 use crate::syscall::do_syscall;
@@ -59,7 +59,7 @@ extern "C" fn m_trap(
                 // give us None. However, that would mean we got a spurious interrupt, unless we
                 // get an interrupt from a non-PLIC source. This is the main reason that the PLIC
                 // hardwires the id 0 to 0, so that we can use it as an error case.
-                plic::handle_interrupt();
+                handle_interrupt();
             }
             _ => {
                 panic!("Unhandled async trap CPU#{} -> {}\n", hart, cause_num);
@@ -172,19 +172,39 @@ extern "C" fn kernel_trap() {
         panicc!("kernel trap: interrupts enabled");
     }
 
-    match scause & 0xfff {
-        9 => {
-            print!(".");
-            plic::handle_interrupt();
+    let intr = match scause & 0x8000_0000_0000_0000 {
+        0 => false,
+        _ => true,
+    };
+
+    if intr {
+        match scause & 0xff {
+            1 => {
+                // time interrupt
+                print!(".");
+            }
+            9 => {
+                plic_intr();
+            }
+            _ => {
+                println!("scause 0x{:x}", scause);
+                println!("sepc=0x{:x} stval=0x{:x}", sepc, rstval());
+                panicc!("kernel_trap");
+            }
         }
-        _ => {
-            print!("/");
-            loop {}
+    } else {
+        match scause & 0xff {
+            5 => {
+                panicc!("load access fault");
+            }
+            13 => {
+                panicc!("load page fault");
+            }
+            _ => {
+                println!("scause 0x{:x}", scause);
+                println!("sepc=0x{:x} stval=0x{:x}", sepc, rstval());
+                panicc!("kernel_trap");
+            }
         }
     }
-
-    // let mut u=Uart::new(0x1000_0000);
-    // if let Some(x)=u.get(){
-    //     print!("{}",x as char);
-    // }
 }

@@ -118,7 +118,7 @@ fn rust_switch_to_user(frame: usize) -> ! {
 #[no_mangle]
 extern "C" fn kinit() {
     println!("in kinit, s mode");
-// plic::set_threshold(0);
+    // plic::set_threshold(0);
     // VIRTIO = [1..8]
     // UART0 = 10
     // PCIE = [32..35]
@@ -139,57 +139,30 @@ extern "C" fn kinit() {
     // plic::enable(10);
     // plic::set_priority(10, 1);
 
-    plic::plic_init_hart();
-
-
+    
     // test
     uart::Uart::new(0x1000_0000).init();
     // page::init();
-
+    
     // kmem::init();
     kalloc::km_init(); // set kmem.free_list
     vm::kvm_init(); // set kernel page table
     vm::kvm_init_hart(); // write satp
     proc::proc_init(); // set proc.kstack
     trap::trap_init_hart(); // set stvec
+    plic::plic_init(); // set irq priority
+    plic::plic_init_hart(); // enable intr and set hart's priority
+
+
 
     // ugly code segment here
-    unsafe{
-        let x=riscv::SSTATUS_SIE;
+    unsafe {
+        let x = riscv::SSTATUS_SIE;
         asm!("csrw sstatus,{}",in(reg) x);
     }
-    
-    unsafe{
-    //     let v = 0x0 as *mut u64;
-    // v.write_volatile(0);
-}
 
-loop {
-    // unsafe {
-    //     asm!("wfi");
-    // }
-    // match plic::next(){
-    //     None=>{}
-    //     Some(x)=>{
-    //     let mut my_uart = uart::Uart::new(0x1000_0000);
-    //     // If we get here, the UART better have something! If not, what happened??
-    //     if let Some(c) = my_uart.get() {
-    //         // If you recognize this code, it used to be in the lib.rs under kmain(). That
-    //         // was because we needed to poll for UART data. Now that we have interrupts,
-    //         // here it goes!
-    //         match c {
-    //             10 | 13 => {
-    //                 // Newline or carriage-return
-    //                 println!();
-    //             }
-    //             _ => {
-    //                 print!("{}", c as u8 as char);
-    //             }
-    //         }
-    //     }
-    //     plic::complete(x);} 
-    // }
-}
+    println!("init ok");
+    loop {}
 
     let val: u64;
     unsafe {
@@ -231,11 +204,10 @@ loop {
     // plic::set_priority(10, 1);
     plic::plic_init_hart();
 
-    unsafe{
-
+    unsafe {
         let v = 0x0 as *mut u64;
         v.write_volatile(0);
-    }   
+    }
 
     println!("ok");
 
@@ -541,15 +513,15 @@ extern "C" fn kmain() {
 
     // Let's set up the interrupt system via the PLIC. We have to set the threshold to something
     // that won't mask all interrupts.
-    println!("Setting up interrupts and PLIC...");
-    // We lower the threshold wall so our interrupts can jump over it.
-    plic::set_threshold(0);
-    // VIRTIO = [1..8]
-    // UART0 = 10
-    // PCIE = [32..35]
-    // Enable the UART interrupt.
-    plic::enable(10);
-    plic::set_priority(10, 1);
+    // println!("Setting up interrupts and PLIC...");
+    // // We lower the threshold wall so our interrupts can jump over it.
+    // plic::set_threshold(0);
+    // // VIRTIO = [1..8]
+    // // UART0 = 10
+    // // PCIE = [32..35]
+    // // Enable the UART interrupt.
+    // plic::enable(10);
+    // plic::set_priority(10, 1);
 
     // trap::schedule_next_context_switch(1);
     // let frame_addr=sched::schedule();

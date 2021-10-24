@@ -139,7 +139,6 @@ extern "C" fn kinit() {
     // plic::enable(10);
     // plic::set_priority(10, 1);
 
-    // test
     uart::Uart::new(0x1000_0000).init();
     // page::init();
 

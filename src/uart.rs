@@ -64,7 +64,7 @@ impl Uart {
 }
 
 // above is sgmarz code
-pub fn uart_intr(){
+pub fn uart_intr() {
     let mut my_uart = Uart::new(0x1000_0000);
     // If we get here, the UART better have something! If not, what happened??
     if let Some(c) = my_uart.get() {

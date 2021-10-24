@@ -139,11 +139,10 @@ extern "C" fn kinit() {
     // plic::enable(10);
     // plic::set_priority(10, 1);
 
-    
     // test
     uart::Uart::new(0x1000_0000).init();
     // page::init();
-    
+
     // kmem::init();
     kalloc::km_init(); // set kmem.free_list
     vm::kvm_init(); // set kernel page table
@@ -152,8 +151,6 @@ extern "C" fn kinit() {
     trap::trap_init_hart(); // set stvec
     plic::plic_init(); // set irq priority
     plic::plic_init_hart(); // enable intr and set hart's priority
-
-
 
     // ugly code segment here
     unsafe {

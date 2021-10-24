@@ -1,6 +1,6 @@
 use crate::mem_layout::{plic_sclaim, plic_senable, plic_spriority, PLIC, UART_IRQ};
 use crate::proc::cpu_id;
-use crate::uart::{Uart,uart_intr};
+use crate::uart::{uart_intr, Uart};
 use crate::virtio;
 
 use core::fmt::Write;

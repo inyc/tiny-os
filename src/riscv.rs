@@ -9,6 +9,24 @@ pub fn rsstatus() -> u64 {
     x
 }
 
+pub fn wsstatus(x: u64) {
+    unsafe {
+        asm!("csew sstatus, {}", in(reg) x);
+    }
+}
+
+pub fn intr_on() {
+    wsstatus(rsstatus() | SSTATUS_SIE);
+}
+
+pub fn intr_off() {
+    wsstatus(rsstatus() & !SSTATUS_SIE);
+}
+
+pub fn intr_get() -> u64 {
+    rsstatus() & SSTATUS_SIE
+}
+
 pub fn rscause() -> u64 {
     let x: u64;
     unsafe {

@@ -1,12 +1,17 @@
-use core::fmt::Write;
-
 use crate::cpu::{TrapFrame, CONTEXT_SWITCH_TIME};
+use crate::mem_layout::{TRAMPOLINE, TRAP_FRAME};
 use crate::plic::{handle_interrupt, plic_intr};
-use crate::riscv::{rscause, rsepc, rsstatus, rstval, wstvec, SSTATUS_SIE, SSTATUS_SPP};
+use crate::proc::my_proc;
+use crate::riscv::{
+    intr_off, make_satp, rsatp, rscause, rsepc, rsstatus, rstval, rtp, wsepc, wsstatus, wstvec,
+    PAGE_SIZE, SSTATUS_SIE, SSTATUS_SPIE, SSTATUS_SPP,
+};
 use crate::rust_switch_to_user;
 use crate::sched::schedule;
 use crate::syscall::do_syscall;
 use crate::uart::Uart;
+use core::fmt::Write;
+use core::mem::transmute;
 
 #[no_mangle]
 /// The m_trap stands for "machine trap". Right now, we are handling
@@ -182,6 +187,7 @@ extern "C" fn kernel_trap() {
             1 => {
                 // time interrupt
                 print!(".");
+                loop{}
             }
             9 => {
                 plic_intr();
@@ -206,5 +212,55 @@ extern "C" fn kernel_trap() {
                 panicc!("kernel_trap");
             }
         }
+    }
+}
+
+extern "C" {
+    fn user_vec();
+    fn user_ret();
+    fn trampoline();
+}
+
+fn user_trap() {
+    print!("user trap");
+    loop{}
+}
+
+pub fn user_trap_ret() {
+    let p = my_proc();
+
+    intr_off();
+
+    unsafe {
+        wstvec(TRAMPOLINE + (user_vec as u64 - trampoline as u64));
+
+        (*(*p).trap_frame).kernel_satp = rsatp();
+        (*(*p).trap_frame).kernel_sp = (*p).kstack + PAGE_SIZE;
+        (*(*p).trap_frame).kernel_trap = user_trap as u64;
+        (*(*p).trap_frame).kernel_hartid = rtp();
+    }
+
+    let mut x = rsstatus();
+    x &= !SSTATUS_SPP; // 0 - u mode
+    x |= SSTATUS_SPIE;
+    wsstatus(x);
+
+    unsafe {
+        wsepc((*(*p).trap_frame).epc);
+
+        let satp = make_satp((*p).page_table as u64);
+
+        let addr = TRAMPOLINE + (user_ret as u64 - trampoline as u64);
+        let func = transmute::<u64, fn(u64, u64)>(addr);
+        println!("TRAMPOLINE: 0x{:x}",TRAMPOLINE as u64);
+        // println!("p trampoline: 0x{:x}",trampoline as u64);
+        // println!("user_vec: 0x{:x}",user_vec as u64);
+        // println!("user_ret: 0x{:x}",user_ret as u64);
+        let a=TRAMPOLINE + (user_vec as u64 - trampoline as u64);
+        println!("user_vec: 0x{:x}",a as u64);
+        println!("pa: 0x{:x}", crate::vm::walk_addr((*p).page_table,0x3fffffe004 as u64));
+        println!("0x{:x}",TRAP_FRAME as u64);
+        // loop{}
+        func(TRAP_FRAME, satp);
     }
 }

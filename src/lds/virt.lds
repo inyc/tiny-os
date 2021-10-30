@@ -126,6 +126,10 @@ SECTIONS
 	  set to the memory address AFTER .text.init, .text, and .text.*'s have been added.
 	*/
     . = ALIGN(0x1000);
+	_trampoline = .;
+	*(tramp_sec)
+    . = ALIGN(0x1000);
+	ASSERT(. - _trampoline >= 0x1000, "error: trampoline larger than one page");
     PROVIDE(_text_end = .);
 	/*
 	  The portion after the right brace is in an odd format. However, this is telling the

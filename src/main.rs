@@ -112,6 +112,7 @@ fn rust_switch_to_user(frame: usize) -> ! {
         switch_to_user(frame);
     }
 }
+
 // ///////////////////////////////////
 // / ENTRY POINT
 // ///////////////////////////////////
@@ -139,6 +140,20 @@ extern "C" fn kinit() {
     // plic::enable(10);
     // plic::set_priority(10, 1);
 
+    unsafe {
+        // Set the next machine timer to fire.
+        let mtimecmp = 0x0200_4000 as *mut u64;
+        let mtime = 0x0200_bff8 as *const u64;
+        // The frequency given by QEMU is 10_000_000 Hz, so this sets
+        // the next interrupt to fire one second from now.
+        mtimecmp.write_volatile(mtime.read_volatile() + 10_000_000);
+
+        // Let's cause a page fault and see what happens. This should trap
+        // to m_trap under trap.rs
+        // let v = 0x0 as *mut u64;
+        // v.write_volatile(0);
+    }
+
     uart::Uart::new(0x1000_0000).init();
     // page::init();
 
@@ -152,12 +167,20 @@ extern "C" fn kinit() {
     plic::plic_init_hart(); // enable intr and set hart's priority
 
     // ugly code segment here
-    unsafe {
-        let x = riscv::SSTATUS_SIE;
-        asm!("csrw sstatus,{}",in(reg) x);
-    }
+    // unsafe {
+        // let x = riscv::SSTATUS_SIE;
+        // asm!("csrw sstatus,{}",in(reg) x);
+        riscv::wsstatus(riscv::SSTATUS_SIE);
+    // }
+
+    proc::user_init();
+    
+
 
     println!("init ok");
+
+    proc::scheduler();
+
     loop {}
 
     let val: u64;

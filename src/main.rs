@@ -141,12 +141,12 @@ extern "C" fn kinit() {
     // plic::set_priority(10, 1);
 
     unsafe {
-        // Set the next machine timer to fire.
-        let mtimecmp = 0x0200_4000 as *mut u64;
-        let mtime = 0x0200_bff8 as *const u64;
-        // The frequency given by QEMU is 10_000_000 Hz, so this sets
-        // the next interrupt to fire one second from now.
-        mtimecmp.write_volatile(mtime.read_volatile() + 10_000_000);
+        // // Set the next machine timer to fire.
+        // let mtimecmp = 0x0200_4000 as *mut u64;
+        // let mtime = 0x0200_bff8 as *const u64;
+        // // The frequency given by QEMU is 10_000_000 Hz, so this sets
+        // // the next interrupt to fire one second from now.
+        // mtimecmp.write_volatile(mtime.read_volatile() + 10_000_000);
 
         // Let's cause a page fault and see what happens. This should trap
         // to m_trap under trap.rs
@@ -168,14 +168,12 @@ extern "C" fn kinit() {
 
     // ugly code segment here
     // unsafe {
-        // let x = riscv::SSTATUS_SIE;
-        // asm!("csrw sstatus,{}",in(reg) x);
-        riscv::wsstatus(riscv::SSTATUS_SIE);
+    // let x = riscv::SSTATUS_SIE;
+    // asm!("csrw sstatus,{}",in(reg) x);
+    riscv::wsstatus(riscv::SSTATUS_SIE);
     // }
 
-    proc::user_init();
-    
-
+    proc::user_init(); // set first proc
 
     println!("init ok");
 
@@ -568,6 +566,7 @@ mod rng;
 mod sched;
 mod string;
 mod syscall;
+mod timer;
 mod trap;
 mod uart;
 mod virtio;

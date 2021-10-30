@@ -1,10 +1,10 @@
 use crate::cpu::{TrapFrame, CONTEXT_SWITCH_TIME};
 use crate::mem_layout::{TRAMPOLINE, TRAP_FRAME};
 use crate::plic::{handle_interrupt, plic_intr};
-use crate::proc::my_proc;
+use crate::proc::{my_proc, yield_cpu, ProcState};
 use crate::riscv::{
-    intr_off, make_satp, rsatp, rscause, rsepc, rsstatus, rstval, rtp, wsepc, wsstatus, wstvec,
-    PAGE_SIZE, SSTATUS_SIE, SSTATUS_SPIE, SSTATUS_SPP,
+    intr_off, make_satp, rsatp, rscause, rsepc, rsip, rsstatus, rstval, rtp, wsepc, wsip, wsstatus,
+    wstvec, PAGE_SIZE, SSTATUS_SIE, SSTATUS_SPIE, SSTATUS_SPP,
 };
 use crate::rust_switch_to_user;
 use crate::sched::schedule;
@@ -186,8 +186,20 @@ extern "C" fn kernel_trap() {
         match scause & 0xff {
             1 => {
                 // time interrupt
-                print!(".");
-                loop{}
+                // print!(".");
+                let p = my_proc();
+                if !p.is_null() {
+                    // improve?
+                    unsafe {
+                        if let ProcState::Running = (*p).state {
+                            yield_cpu();
+                        }
+                    }
+                }
+
+                // acknowledge the software interrupt by clearing
+                // the SSIP bit in sip.
+                wsip(rsip() & !2);
             }
             9 => {
                 plic_intr();
@@ -222,8 +234,54 @@ extern "C" {
 }
 
 fn user_trap() {
-    print!("user trap");
-    loop{}
+    // print!("user trap");
+    // loop {}
+
+    let sstatus = rsstatus();
+    let scause = rscause();
+
+    if sstatus & SSTATUS_SPP != 0 {
+        panicc!("kernel trap: not from u mode");
+    }
+
+    wstvec(kernel_vec as u64);
+
+    let p = my_proc();
+    unsafe {
+        (*(*p).trap_frame).epc = rsepc();
+    }
+
+    let intr = match scause & 0x8000_0000_0000_0000 {
+        0 => false,
+        _ => true,
+    };
+
+    if intr {
+        match scause & 0xff {
+            1 => {
+                yield_cpu();
+                wsip(rsip() & !2);
+            }
+            _ => {
+                println!("scause 0x{:x}", scause);
+                println!("sepc=0x{:x} stval=0x{:x}", rsepc(), rstval());
+                panicc!("user_trap");
+            }
+        }
+    } else {
+        match scause & 0xff {
+            8 => {
+                // syscall
+            }
+            _ => {
+                println!("scause 0x{:x}", scause);
+                println!("sepc=0x{:x} stval=0x{:x}", rsepc(), rstval());
+                panicc!("user_trap");
+            }
+        }
+    }
+
+    user_trap_ret();
 }
 
 pub fn user_trap_ret() {
@@ -252,15 +310,6 @@ pub fn user_trap_ret() {
 
         let addr = TRAMPOLINE + (user_ret as u64 - trampoline as u64);
         let func = transmute::<u64, fn(u64, u64)>(addr);
-        println!("TRAMPOLINE: 0x{:x}",TRAMPOLINE as u64);
-        // println!("p trampoline: 0x{:x}",trampoline as u64);
-        // println!("user_vec: 0x{:x}",user_vec as u64);
-        // println!("user_ret: 0x{:x}",user_ret as u64);
-        let a=TRAMPOLINE + (user_vec as u64 - trampoline as u64);
-        println!("user_vec: 0x{:x}",a as u64);
-        println!("pa: 0x{:x}", crate::vm::walk_addr((*p).page_table,0x3fffffe004 as u64));
-        println!("0x{:x}",TRAP_FRAME as u64);
-        // loop{}
         func(TRAP_FRAME, satp);
     }
 }

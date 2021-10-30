@@ -5,7 +5,7 @@ use crate::riscv::{
     make_satp, pa_to_pte, page_round_down, page_round_up, pte_flags, pte_to_pa, sfence_vma, vpn,
     wsatp, PageTable, Pte, MAX_VA, PAGE_SIZE, PTE_R, PTE_U, PTE_V, PTE_W, PTE_X,
 };
-use crate::string::{mem_set,mem_copy};
+use crate::string::{mem_copy, mem_set};
 use core::fmt::Write;
 use core::ptr::null_mut;
 
@@ -46,7 +46,13 @@ fn kvm_make() -> PageTable {
             PTE_R | PTE_W,
         );
 
-        kvm_map(kpg_tbl, TRAMPOLINE, trampoline as u64, PAGE_SIZE, PTE_R | PTE_X);
+        kvm_map(
+            kpg_tbl,
+            TRAMPOLINE,
+            trampoline as u64,
+            PAGE_SIZE,
+            PTE_R | PTE_X,
+        );
     }
 
     proc_map_stacks(kpg_tbl);
@@ -81,7 +87,7 @@ fn walk(mut page_table: PageTable, va: u64, alloc: i32) -> *mut Pte {
                 if alloc == 0 {
                     return null_mut();
                 }
-                
+
                 page_table = kalloc();
                 if page_table.is_null() {
                     return null_mut();
@@ -207,15 +213,14 @@ pub fn uvm_free(page_table: PageTable, size: u64) {
     free_walk(page_table);
 }
 
-
 // write from 0
-pub fn uvm_init(page_table:PageTable,src:*const u64,size:u64){
-    if size>PAGE_SIZE{
+pub fn uvm_init(page_table: PageTable, src: *const u64, size: u64) {
+    if size > PAGE_SIZE {
         panicc!("uvm_init: size");
     }
 
-    let mem=kalloc();
-    mem_set(mem,0,PAGE_SIZE);
-    mem_copy(mem,src,size);
-    map_pages(page_table,0,PAGE_SIZE,mem as u64,PTE_R|PTE_X|PTE_U);
+    let mem = kalloc();
+    mem_set(mem, 0, PAGE_SIZE);
+    mem_copy(mem, src, size);
+    map_pages(page_table, 0, PAGE_SIZE, mem as u64, PTE_R | PTE_X | PTE_U);
 }

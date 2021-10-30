@@ -1,10 +1,10 @@
-use crate::kalloc::{kalloc,kfree};
+use crate::kalloc::{kalloc, kfree};
 use crate::mem_layout::{kstack, TRAMPOLINE, TRAP_FRAME};
 use crate::param::{NCPU, NPROC};
 use crate::riscv::{intr_get, intr_off, intr_on, rtp, PageTable, PAGE_SIZE, PTE_R, PTE_W, PTE_X};
 use crate::string::mem_set;
 use crate::trap::user_trap_ret;
-use crate::vm::{kvm_map, map_pages, uvm_free, uvm_unmap,uvm_init};
+use crate::vm::{kvm_map, map_pages, uvm_free, uvm_init, uvm_unmap};
 use core::fmt::Write;
 use core::mem::size_of;
 use core::ptr::null_mut;
@@ -87,7 +87,7 @@ fn my_cpu() -> *mut Cpu {
 #[repr(C)]
 pub struct TrapFrame {
     pub kernel_satp: u64, // 0
-    pub kernel_sp: u64, // 8
+    pub kernel_sp: u64,   // 8
     pub kernel_trap: u64, // 16
     pub epc: u64,
     pub kernel_hartid: u64,
@@ -215,7 +215,14 @@ fn proc_page_table(p: *const Proc) -> PageTable {
     mem_set(page_table, 0, PAGE_SIZE as u64);
 
     unsafe {
-        if map_pages(page_table, TRAMPOLINE, PAGE_SIZE, trampoline as u64, PTE_R | PTE_X) != 0 {
+        if map_pages(
+            page_table,
+            TRAMPOLINE,
+            PAGE_SIZE,
+            trampoline as u64,
+            PTE_R | PTE_X,
+        ) != 0
+        {
             uvm_free(page_table, 0);
             return null_mut();
         }
@@ -237,10 +244,10 @@ fn proc_page_table(p: *const Proc) -> PageTable {
     page_table
 }
 
-fn proc_free_page_table(page_table:PageTable,size:u64){
-    uvm_unmap(page_table,TRAMPOLINE,1,0);
-    uvm_unmap(page_table,TRAP_FRAME,1,0);
-    uvm_free(page_table,size);
+fn proc_free_page_table(page_table: PageTable, size: u64) {
+    uvm_unmap(page_table, TRAMPOLINE, 1, 0);
+    uvm_unmap(page_table, TRAP_FRAME, 1, 0);
+    uvm_free(page_table, size);
 }
 
 fn alloc_pid() -> i32 {
@@ -286,7 +293,7 @@ fn alloc_proc() -> *mut Proc {
         // println!("287 {}",(*(*p).trap_frame).kernel_trap);
 
         (*p).page_table = proc_page_table(p);
-        if (*p).page_table.is_null(){
+        if (*p).page_table.is_null() {
             free_proc(p);
             return null_mut();
         }
@@ -304,48 +311,46 @@ fn alloc_proc() -> *mut Proc {
     p
 }
 
-fn free_proc(p:*mut Proc){
-    unsafe{
-        if !(*p).trap_frame.is_null(){
+fn free_proc(p: *mut Proc) {
+    unsafe {
+        if !(*p).trap_frame.is_null() {
             kfree((*p).trap_frame as *mut u64)
         }
 
-        if !(*p).page_table.is_null(){
-            proc_free_page_table((*p).page_table,(*p).size);
+        if !(*p).page_table.is_null() {
+            proc_free_page_table((*p).page_table, (*p).size);
         }
 
-        (*p).trap_frame=null_mut();
-        (*p).page_table=null_mut();
-        (*p).size=0;
-        (*p).parent=null_mut();
-        (*p).killed=0;
-        (*p).pid=0;
-        (*p).state=ProcState::Unused;
+        (*p).trap_frame = null_mut();
+        (*p).page_table = null_mut();
+        (*p).size = 0;
+        (*p).parent = null_mut();
+        (*p).killed = 0;
+        (*p).pid = 0;
+        (*p).state = ProcState::Unused;
     }
 }
 
-fn first_proc(){
+fn first_proc() {
     // let a:*mut u64=0 as *mut u64;
     // unsafe{
     //     (*a)=0;
     // }
-    loop{}
+    loop {}
 }
 
-pub fn user_init(){
-    let p=alloc_proc();
+pub fn user_init() {
+    let p = alloc_proc();
 
-    unsafe{
+    unsafe {
         // !--dangerous--!
-        uvm_init((*p).page_table,first_proc as *const u64,PAGE_SIZE);
-        (*p).size=PAGE_SIZE;
+        uvm_init((*p).page_table, first_proc as *const u64, PAGE_SIZE);
+        (*p).size = PAGE_SIZE;
 
-        
-        (*(*p).trap_frame).epc=0;
-        (*(*p).trap_frame).sp=PAGE_SIZE;
+        (*(*p).trap_frame).epc = 0;
+        (*(*p).trap_frame).sp = PAGE_SIZE;
 
-        (*p).state=ProcState::Runnable;
-
+        (*p).state = ProcState::Runnable;
     }
 }
 
@@ -398,10 +403,9 @@ pub fn scheduler() {
                     switch(&(*c).context, &PROC[i].context);
 
                     (*c).proc = null_mut();
+                    print!(".");
                 }
             }
-
-            print!(".");
         }
     }
 }

@@ -1,3 +1,54 @@
+pub const MSTATUS_MIE: u64 = 1 << 3;
+pub const MIE_MTIE: u64 = 1 << 7;
+
+pub fn rmhartid() -> u64 {
+    let x: u64;
+    unsafe {
+        asm!("csrr {}, mhartid",out(reg) x);
+    }
+    x
+}
+
+pub fn rmstatus() -> u64 {
+    let x: u64;
+    unsafe {
+        asm!("csrr {}, mstatus", out(reg) x);
+    }
+    x
+}
+
+pub fn wmstatus(x: u64) {
+    unsafe {
+        asm!("csrw mstatus, {}", in(reg) x);
+    }
+}
+
+pub fn wmscratch(x: u64) {
+    unsafe {
+        asm!("csrw mscratch, {}", in(reg) x);
+    }
+}
+
+pub fn wmtvec(x: u64) {
+    unsafe {
+        asm!("csrw mtvec, {}", in(reg) x);
+    }
+}
+
+pub fn rmie() -> u64 {
+    let x: u64;
+    unsafe {
+        asm!("csrr {}, mie", out(reg) x);
+    }
+    x
+}
+
+pub fn wmie(x: u64) {
+    unsafe {
+        asm!("csrw mie, {}", in(reg) x);
+    }
+}
+
 pub const SSTATUS_SIE: u64 = 1 << 1;
 pub const SSTATUS_SPIE: u64 = 1 << 5;
 pub const SSTATUS_SPP: u64 = 1 << 8; // s mode - 1, u mode - 0
@@ -61,6 +112,20 @@ pub fn rstval() -> u64 {
 pub fn wstvec(x: u64) {
     unsafe {
         asm!("csrw stvec, {}", in(reg) x);
+    }
+}
+
+pub fn rsip() -> u64 {
+    let x: u64;
+    unsafe {
+        asm!("csrr {}, sip", out(reg) x);
+    }
+    x
+}
+
+pub fn wsip(x: u64) {
+    unsafe {
+        asm!("csrw sip, {}", in(reg) x);
     }
 }
 

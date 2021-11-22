@@ -140,20 +140,6 @@ extern "C" fn kinit() {
     // plic::enable(10);
     // plic::set_priority(10, 1);
 
-    unsafe {
-        // // Set the next machine timer to fire.
-        // let mtimecmp = 0x0200_4000 as *mut u64;
-        // let mtime = 0x0200_bff8 as *const u64;
-        // // The frequency given by QEMU is 10_000_000 Hz, so this sets
-        // // the next interrupt to fire one second from now.
-        // mtimecmp.write_volatile(mtime.read_volatile() + 10_000_000);
-
-        // Let's cause a page fault and see what happens. This should trap
-        // to m_trap under trap.rs
-        // let v = 0x0 as *mut u64;
-        // v.write_volatile(0);
-    }
-
     uart::Uart::new(0x1000_0000).init();
     // page::init();
 
@@ -165,21 +151,54 @@ extern "C" fn kinit() {
     trap::trap_init_hart(); // set stvec
     plic::plic_init(); // set irq priority
     plic::plic_init_hart(); // enable intr and set hart's priority
+    virtio_disk::virtio_disk_init(); // intialize the device
 
     // ugly code segment here
     // unsafe {
     // let x = riscv::SSTATUS_SIE;
     // asm!("csrw sstatus,{}",in(reg) x);
-    riscv::wsstatus(riscv::SSTATUS_SIE);
     // }
+    riscv::wsstatus(riscv::SSTATUS_SIE);
 
     proc::user_init(); // set first proc
 
     println!("init ok");
 
-    proc::scheduler();
+    let mut b = virtio_disk::Buf {
+        data: [0; virtio_disk::BLOCK_SIZE as usize],
+    };
+    b.data[0] = 1;
+    virtio_disk::virtio_disk_rw(&mut b, 0);
+
+    let mut ii = 0;
+    loop {
+        if ii > 1_000 {
+            break;
+        }
+        ii += 1;
+    }
+
+    println!("read ok");
+
+    for i in 0..16 {
+        print!("{:02x} ", b.data[i]);
+    }
+    println!("");
+    for i in 0..16 {
+        print!("{:02x} ", b.data[i + 16]);
+    }
+    println!("");
+    for i in 0..16 {
+        print!("{:02x} ", b.data[i + 32]);
+    }
+    println!("");
+    for i in 0..16 {
+        print!("{:02x} ", b.data[i + 48]);
+    }
+    println!("");
 
     loop {}
+    proc::scheduler();
 
     let val: u64;
     unsafe {
@@ -192,7 +211,6 @@ extern "C" fn kinit() {
         println!("0x{:x}", RODATA_END);
         println!("0x{:x}", BSS_END);
         println!("0x{:x}", HEAP_START);
-        // trap::kernel_vec();
     }
 
     // process::init();
@@ -235,7 +253,7 @@ extern "C" fn kinit() {
     }
 
     // Set up virtio. This requires a working heap and page-grained allocator.
-    virtio::probe();
+    // virtio::probe();
 
     // This just tests the block device. We know that it connects backwards (8, 7, ..., 1).
     // let buffer = kmem::kmalloc(1024);
@@ -570,4 +588,5 @@ mod timer;
 mod trap;
 mod uart;
 mod virtio;
+mod virtio_disk;
 mod vm;

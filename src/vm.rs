@@ -222,5 +222,11 @@ pub fn uvm_init(page_table: PageTable, src: *const u64, size: u64) {
     let mem = kalloc();
     mem_set(mem, 0, PAGE_SIZE);
     mem_copy(mem, src, size);
-    map_pages(page_table, 0, PAGE_SIZE, mem as u64, PTE_R | PTE_X | PTE_U);
+    map_pages(
+        page_table,
+        0,
+        PAGE_SIZE,
+        mem as u64,
+        PTE_R | PTE_X | PTE_U | PTE_W,
+    );
 }

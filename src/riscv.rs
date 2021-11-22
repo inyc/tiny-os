@@ -169,7 +169,7 @@ pub fn rtp() -> u64 {
 pub const MAX_VA: u64 = 1 << (9 + 9 + 9 + 12 - 1);
 
 pub const PAGE_SIZE: u64 = 4096;
-const PAGE_SHIFT: u32 = 12;
+pub const PAGE_SHIFT: u32 = 12;
 
 pub type Pte = u64;
 pub type PageTable = *mut u64;

@@ -186,7 +186,6 @@ extern "C" fn kernel_trap() {
         match scause & 0xff {
             1 => {
                 // time interrupt
-                // print!(".");
                 let p = my_proc();
                 if !p.is_null() {
                     // improve?
@@ -234,14 +233,11 @@ extern "C" {
 }
 
 fn user_trap() {
-    // print!("user trap");
-    // loop {}
-
     let sstatus = rsstatus();
     let scause = rscause();
 
     if sstatus & SSTATUS_SPP != 0 {
-        panicc!("kernel trap: not from u mode");
+        panicc!("user_trap: not from u mode");
     }
 
     wstvec(kernel_vec as u64);
@@ -272,6 +268,17 @@ fn user_trap() {
         match scause & 0xff {
             8 => {
                 // syscall
+                print!("/");
+                unsafe {
+                    (*(*p).trap_frame).epc += 4;
+                }
+            }
+            12 => {
+                panicc!("instruction page fault");
+            }
+            15 => {
+                // AMO atomic mem operation, riscv-sepc p52
+                panicc!("store/AMO page fault");
             }
             _ => {
                 println!("scause 0x{:x}", scause);

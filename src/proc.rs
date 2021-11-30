@@ -339,7 +339,7 @@ extern "C" {
 
 fn first_proc() {
     unsafe {
-        make_syscall();
+        // make_syscall();
     }
     loop {}
 }

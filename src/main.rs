@@ -152,53 +152,73 @@ extern "C" fn kinit() {
     plic::plic_init(); // set irq priority
     plic::plic_init_hart(); // enable intr and set hart's priority
     virtio_disk::virtio_disk_init(); // intialize the device
+    block_cache::binit(); // set the linked list of buffers
+
+    riscv::wsstatus(riscv::SSTATUS_SIE);
+
+    // let mut b=block_cache::Buf::new();
+    // b.block_no=1;
+    // virtio_disk::virtio_disk_rw(&mut b,0);
+
+    // block_cache::bread(1,1);
+
+    fs::fs_init(param::ROOT_DEV); // main() not call it in xv6, since need sleep
+
+    let inode = fs::iget(1, 1);
+    let mut b = block_cache::Buf::new();
+    fs::readi(inode, 0, &mut b.data as *mut u8 as u64, 0, 40);
+
+    println!("read ok");
+    for i in 0..36 {
+        print!("{}", b.data[i] as char);
+    }
+    println!("");
+
+    // loop {}
 
     // ugly code segment here
     // unsafe {
     // let x = riscv::SSTATUS_SIE;
     // asm!("csrw sstatus,{}",in(reg) x);
     // }
-    riscv::wsstatus(riscv::SSTATUS_SIE);
 
     proc::user_init(); // set first proc
 
     println!("init ok");
 
-    let mut b = virtio_disk::Buf {
-        data: [0; virtio_disk::BLOCK_SIZE as usize],
-    };
-    b.data[0] = 1;
-    virtio_disk::virtio_disk_rw(&mut b, 0);
-
-    let mut ii = 0;
-    loop {
-        if ii > 1_000 {
-            break;
-        }
-        ii += 1;
-    }
-
-    println!("read ok");
-
-    for i in 0..16 {
-        print!("{:02x} ", b.data[i]);
-    }
-    println!("");
-    for i in 0..16 {
-        print!("{:02x} ", b.data[i + 16]);
-    }
-    println!("");
-    for i in 0..16 {
-        print!("{:02x} ", b.data[i + 32]);
-    }
-    println!("");
-    for i in 0..16 {
-        print!("{:02x} ", b.data[i + 48]);
-    }
-    println!("");
-
-    loop {}
     proc::scheduler();
+
+    // let mut b = block_cache::Buf {
+    //     data: [0; fs::BLOCK_SIZE as usize],
+    // };
+    // b.data[0] = 1;
+    // virtio_disk::virtio_disk_rw(&mut b, 0);
+
+    // let mut ii = 0;
+    // loop {
+    //     if ii > 1_000 {
+    //         break;
+    //     }
+    //     ii += 1;
+    // }
+
+    // println!("read ok");
+    // for i in 0..16 {
+    //     print!("{:02x} ", b.data[i]);
+    // }
+    // println!("");
+    // for i in 0..16 {
+    //     print!("{:02x} ", b.data[i + 16]);
+    // }
+    // println!("");
+    // for i in 0..16 {
+    //     print!("{:02x} ", b.data[i + 32]);
+    // }
+    // println!("");
+    // for i in 0..16 {
+    //     print!("{:02x} ", b.data[i + 48]);
+    // }
+    // println!("");
 
     let val: u64;
     unsafe {
@@ -570,7 +590,9 @@ extern "C" fn kmain() {
 
 mod assembly;
 mod block;
+mod block_cache;
 mod cpu;
+mod fs;
 mod kalloc;
 mod kmem;
 mod mem_layout;

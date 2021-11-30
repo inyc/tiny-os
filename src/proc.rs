@@ -331,8 +331,6 @@ fn free_proc(p: *mut Proc) {
     }
 }
 
-fn test() {}
-
 extern "C" {
     fn make_syscall();
 }

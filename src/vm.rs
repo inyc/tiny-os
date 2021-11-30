@@ -80,7 +80,7 @@ fn walk(mut page_table: PageTable, va: u64, alloc: i32) -> *mut Pte {
 
     for level in (1..=2).rev() {
         unsafe {
-            let mut pte = page_table.add(vpn(level, va) as usize);
+            let pte = page_table.add(vpn(level, va) as usize);
             if (*pte) & PTE_V != 0 {
                 page_table = pte_to_pa(*pte) as PageTable;
             } else {

@@ -80,7 +80,7 @@ fn walk(mut page_table: PageTable, va: u64, alloc: i32) -> *mut Pte {
 
     for level in (1..=2).rev() {
         unsafe {
-            let mut pte = page_table.add(vpn(level, va) as usize);
+            let pte = page_table.add(vpn(level, va) as usize);
             if (*pte) & PTE_V != 0 {
                 page_table = pte_to_pa(*pte) as PageTable;
             } else {
@@ -222,5 +222,11 @@ pub fn uvm_init(page_table: PageTable, src: *const u64, size: u64) {
     let mem = kalloc();
     mem_set(mem, 0, PAGE_SIZE);
     mem_copy(mem, src, size);
-    map_pages(page_table, 0, PAGE_SIZE, mem as u64, PTE_R | PTE_X | PTE_U);
+    map_pages(
+        page_table,
+        0,
+        PAGE_SIZE,
+        mem as u64,
+        PTE_R | PTE_X | PTE_U | PTE_W,
+    );
 }

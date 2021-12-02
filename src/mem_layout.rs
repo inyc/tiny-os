@@ -3,6 +3,7 @@ use crate::riscv::{MAX_VA, PAGE_SIZE};
 pub const UART: u64 = 0x1000_0000;
 pub const UART_IRQ: u64 = 10;
 
+// only block device
 pub const VIRTIO: u64 = 0x1000_1000;
 pub const VIRTIO_IRQ: u64 = 1;
 

@@ -1,75 +1,3 @@
-// The frequency of QEMU is 10 MHz
-pub const FREQ: u64 = 10_000_000;
-// Let's do this 250 times per second for switching
-pub const CONTEXT_SWITCH_TIME: u64 = FREQ / 250;
-
-/// In 64-bit mode, we're given three different modes for the MMU:
-/// 0 - The MMU is off -- no protection and no translation PA = VA
-/// 8 - This is Sv39 mode -- 39-bit virtual addresses
-/// 9 - This is Sv48 mode -- 48-bit virtual addresses
-#[repr(usize)]
-pub enum SatpMode {
-    Off = 0,
-    Sv39 = 8,
-    Sv48 = 9,
-}
-
-/// The trap frame is set into a structure
-/// and packed into each hart's mscratch register.
-/// This allows for quick reference and full
-/// context switch handling.
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct TrapFrame {
-    pub regs: [usize; 32],  // 0 - 255
-    pub fregs: [usize; 32], // 256 - 511
-    pub satp: usize,        // 512 - 519
-    pub pc: usize,          // 520
-    pub hartid: usize,      // 528
-    pub qm: usize,          // 536
-}
-
-/// Rust requires that we initialize our structures
-/// because of the move semantics. What'll happen below
-/// is Rust will construct a new TrapFrame and move it
-/// out of the zero() function below. Rust contains two
-/// different "selfs" where self can refer to the object
-/// in memory or Self (capital S) which refers to the
-/// data type of the structure. In the case below, this
-/// is TrapFrame.
-impl TrapFrame {
-    pub const fn new() -> Self {
-        TrapFrame {
-            regs: [0; 32],
-            fregs: [0; 32],
-            satp: 0,
-            pc: 0,
-            hartid: 0,
-            qm: 1,
-        }
-    }
-}
-
-// impl TrapFrame {
-// 	pub const fn zero() -> Self {
-// 		TrapFrame { regs:       [0; 32],
-// 		            fregs:      [0; 32],
-// 		            satp:       0,
-// 		            trap_stack: null_mut(),
-// 		             hartid:     0, }
-// 	}
-// }
-
-pub static mut KERNEL_TRAP_FRAME: [TrapFrame; 8] = [TrapFrame::new(); 8];
-
-/// The SATP register contains three fields: mode, address space id, and
-/// the first level table address (level 2 for Sv39). This function
-/// helps make the 64-bit register contents based on those three
-/// fields.
-pub const fn build_satp(mode: SatpMode, asid: usize, addr: usize) -> usize {
-    (mode as usize) << 60 | (asid & 0xffff) << 44 | (addr >> 12) & 0xff_ffff_ffff
-}
-
 pub fn w_medeleg(x: u64) {
     unsafe {
         asm!("csrw medeleg, {}",in(reg) x);
@@ -89,6 +17,7 @@ pub fn mhartid_read() -> usize {
         rval
     }
 }
+
 pub fn mie_read() -> usize {
     unsafe {
         let rval;

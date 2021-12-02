@@ -5,12 +5,8 @@ switch:
         sd sp, 8(a0)
         sd s0, 16(a0)
         sd s1, 24(a0)
-        sd s2, 32(a0)
-.global debug1
-debug1:        
-        sd s3, 40(a0)
-.global debug2
-debug2:         
+        sd s2, 32(a0)      
+        sd s3, 40(a0)     
         sd s4, 48(a0)
         sd s5, 56(a0)
         sd s6, 64(a0)

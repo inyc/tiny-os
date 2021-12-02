@@ -331,11 +331,14 @@ fn free_proc(p: *mut Proc) {
     }
 }
 
+extern "C" {
+    fn make_syscall();
+}
+
 fn first_proc() {
-    // let a:*mut u64=0 as *mut u64;
-    // unsafe{
-    //     (*a)=0;
-    // }
+    unsafe {
+        // make_syscall();
+    }
     loop {}
 }
 
@@ -390,6 +393,7 @@ fn fork_ret() {
 
 pub fn scheduler() {
     let c = my_cpu();
+    println!("addr 0x{:x}", first_proc as u64);
 
     loop {
         // avoid dead lock by intr_on()?

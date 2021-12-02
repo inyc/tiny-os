@@ -45,5 +45,5 @@ pub fn str_cmp(mut s1: *const u8, mut s2: *const u8, mut size: u32) -> u8 {
         return 0;
     }
 
-    unsafe { (*s1) }
+    unsafe { *s1 }
 }

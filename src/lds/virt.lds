@@ -6,17 +6,6 @@
 */
 OUTPUT_ARCH( "riscv" )
 
-/*
-We're setting our entry point to a symbol
-called _start which is inside of boot.S. This
-essentially stores the address of _start as the
-"entry point", or where CPU instructions should start
-executing.
-
-In the rest of this script, we are going to place _start
-right at the beginning of 0x8000_0000 because this is where
-the virtual machine and many RISC-V boards will start executing.
-*/
 ENTRY( _start )
 
 /*
@@ -26,18 +15,8 @@ We use '!' to invert 'r' (read-only) and 'i' (initialized). We don't want
 our memory to be read-only, and we're stating that it is NOT initialized
 at the beginning.
 
-The ORIGIN is the memory address 0x8000_0000. If we look at the virt
-spec or the specification for the RISC-V HiFive Unleashed, this is the
-starting memory address for our code.
-
-Side note: There might be other boot ROMs at different addresses, but
-their job is to get to this point.
-
 Finally LENGTH = 128M tells the linker that we have 128 megabyte of RAM.
 The linker will double check this to make sure everything can fit.
-
-The HiFive Unleashed has a lot more RAM than this, but for the virtual 
-machine, I went with 128M since I think that's enough RAM for now.
 
 We can provide other pieces of memory, such as QSPI, or ROM, but we're
 telling the linker script here that we have one pool of RAM.

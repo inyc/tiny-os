@@ -1,14 +1,22 @@
-use crate::kalloc::kalloc;
-use crate::mem_layout::kstack;
+use crate::kalloc::{kalloc, kfree};
+use crate::mem_layout::{kstack, TRAMPOLINE, TRAP_FRAME};
 use crate::param::{NCPU, NPROC};
-use crate::riscv::{intr_get, intr_off, intr_on, rtp, PageTable, PAGE_SIZE, PTE_R, PTE_W};
-use crate::vm::kvm_map;
+use crate::riscv::{intr_get, intr_off, intr_on, rtp, PageTable, PAGE_SIZE, PTE_R, PTE_W, PTE_X};
+use crate::string::mem_set;
+use crate::trap::user_trap_ret;
+use crate::vm::{kvm_map, map_pages, uvm_free, uvm_init, uvm_unmap};
 use core::fmt::Write;
+use core::mem::size_of;
 use core::ptr::null_mut;
+
+extern "C" {
+    // static trampoline: u64;
+    fn trampoline();
+}
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-struct Context {
+pub struct Context {
     ra: u64,
     sp: u64,
     s0: u64,
@@ -77,47 +85,47 @@ fn my_cpu() -> *mut Cpu {
 }
 
 #[repr(C)]
-struct TrapFrame {
-    kernel_satp: u64, // 0
-    kernel_sp: u64,
-    kernel_trap: u64,
-    epc: u64,
-    kernel_hartid: u64,
-    ra: u64,
-    sp: u64, // 48
-    gp: u64,
-    tp: u64,
-    t0: u64,
-    t1: u64,
-    t2: u64,
-    s0: u64, // 96
-    s1: u64,
-    a0: u64,
-    a1: u64,
-    a2: u64,
-    a3: u64, // 136
-    a4: u64,
-    a5: u64,
-    a6: u64,
-    a7: u64,
-    s2: u64,
-    s3: u64, // 184
-    s4: u64,
-    s5: u64,
-    s6: u64,
-    s7: u64,
-    s8: u64,
-    s9: u64, // 232
-    s10: u64,
-    s11: u64,
-    t3: u64,
-    t4: u64,
-    t5: u64,
-    t6: u64, // 280
+pub struct TrapFrame {
+    pub kernel_satp: u64, // 0
+    pub kernel_sp: u64,   // 8
+    pub kernel_trap: u64, // 16
+    pub epc: u64,
+    pub kernel_hartid: u64,
+    pub ra: u64,
+    pub sp: u64, // 48
+    pub gp: u64,
+    pub tp: u64,
+    pub t0: u64,
+    pub t1: u64,
+    pub t2: u64,
+    pub s0: u64, // 96
+    pub s1: u64, // 104
+    pub a0: u64, // 112
+    pub a1: u64,
+    pub a2: u64,
+    pub a3: u64, // 136
+    pub a4: u64,
+    pub a5: u64,
+    pub a6: u64,
+    pub a7: u64,
+    pub s2: u64,
+    pub s3: u64, // 184
+    pub s4: u64,
+    pub s5: u64,
+    pub s6: u64,
+    pub s7: u64,
+    pub s8: u64,
+    pub s9: u64, // 232
+    pub s10: u64,
+    pub s11: u64,
+    pub t3: u64,
+    pub t4: u64,
+    pub t5: u64,
+    pub t6: u64, // 280
 }
 
 #[derive(Copy, Clone)]
-enum ProcState {
+pub enum ProcState {
     Unused,
     Sleeping,
     Runnable,
@@ -126,17 +134,17 @@ enum ProcState {
 }
 
 #[derive(Copy, Clone)]
-struct Proc {
-    state: ProcState,
-    parent: *mut Proc,
-    killed: i32,
-    pid: i32,
+pub struct Proc {
+    pub state: ProcState,
+    pub parent: *mut Proc,
+    pub killed: i32,
+    pub pid: i32,
 
-    kstack: u64,
-    size: u64,
-    page_table: PageTable,
-    trap_frame: *mut TrapFrame,
-    context: Context,
+    pub kstack: u64,
+    pub size: u64,
+    pub page_table: PageTable,
+    pub trap_frame: *mut TrapFrame,
+    pub context: Context,
 }
 
 impl Proc {
@@ -160,7 +168,7 @@ static mut PROC: [Proc; NPROC as usize] = [Proc::new(); NPROC as usize];
 
 static mut NEXT_PID: i32 = 1;
 
-fn my_proc() -> *mut Proc {
+pub fn my_proc() -> *mut Proc {
     let old = intr_get();
     // if don't disable intr here, then when the process
     // is moved to another cpu, the c will not be mycpu
@@ -199,6 +207,49 @@ pub fn proc_init() {
     }
 }
 
+fn proc_page_table(p: *const Proc) -> PageTable {
+    let page_table = kalloc();
+    if page_table.is_null() {
+        return null_mut();
+    }
+    mem_set(page_table, 0, PAGE_SIZE as u64);
+
+    unsafe {
+        if map_pages(
+            page_table,
+            TRAMPOLINE,
+            PAGE_SIZE,
+            trampoline as u64,
+            PTE_R | PTE_X,
+        ) != 0
+        {
+            uvm_free(page_table, 0);
+            return null_mut();
+        }
+
+        if map_pages(
+            page_table,
+            TRAP_FRAME,
+            PAGE_SIZE,
+            (*p).trap_frame as u64,
+            PTE_R | PTE_W,
+        ) != 0
+        {
+            uvm_unmap(page_table, TRAMPOLINE, 1, 0);
+            uvm_free(page_table, 0);
+            return null_mut();
+        }
+    }
+
+    page_table
+}
+
+fn proc_free_page_table(page_table: PageTable, size: u64) {
+    uvm_unmap(page_table, TRAMPOLINE, 1, 0);
+    uvm_unmap(page_table, TRAP_FRAME, 1, 0);
+    uvm_free(page_table, size);
+}
+
 fn alloc_pid() -> i32 {
     let pid;
     unsafe {
@@ -210,10 +261,104 @@ fn alloc_pid() -> i32 {
     pid
 }
 
-fn alloc_proc() {}
+// doesn't set p.state
+fn alloc_proc() -> *mut Proc {
+    let mut i: usize = 0;
+    while i < NPROC as usize {
+        unsafe {
+            if let ProcState::Unused = PROC[i].state {
+                break;
+            }
+        }
+        i += 1;
+    }
+
+    if i == NPROC as usize {
+        return null_mut();
+    }
+
+    let p;
+    unsafe {
+        p = &mut PROC[i];
+        (*p).state = ProcState::Runnable;
+        (*p).pid = alloc_pid();
+        // parent?
+
+        (*p).trap_frame = kalloc() as *mut TrapFrame;
+        if (*p).trap_frame.is_null() {
+            return null_mut();
+        }
+
+        // *((*p).trap_frame as *mut TrapFrame as *mut u8).add(16)=132;
+        // println!("287 {}",(*(*p).trap_frame).kernel_trap);
+
+        (*p).page_table = proc_page_table(p);
+        if (*p).page_table.is_null() {
+            free_proc(p);
+            return null_mut();
+        }
+
+        mem_set(
+            &mut (*p).context as *mut Context as *mut u64,
+            0,
+            size_of::<Context>() as u64,
+        );
+
+        (*p).context.ra = fork_ret as u64;
+        (*p).context.sp = (*p).kstack + PAGE_SIZE;
+    }
+
+    p
+}
+
+fn free_proc(p: *mut Proc) {
+    unsafe {
+        if !(*p).trap_frame.is_null() {
+            kfree((*p).trap_frame as *mut u64)
+        }
+
+        if !(*p).page_table.is_null() {
+            proc_free_page_table((*p).page_table, (*p).size);
+        }
+
+        (*p).trap_frame = null_mut();
+        (*p).page_table = null_mut();
+        (*p).size = 0;
+        (*p).parent = null_mut();
+        (*p).killed = 0;
+        (*p).pid = 0;
+        (*p).state = ProcState::Unused;
+    }
+}
 
 extern "C" {
-    pub fn switch(old: *const Context, new: *const Context);
+    fn make_syscall();
+}
+
+fn first_proc() {
+    unsafe {
+        // make_syscall();
+    }
+    loop {}
+}
+
+pub fn user_init() {
+    let p = alloc_proc();
+
+    unsafe {
+        // !--dangerous--!
+        uvm_init((*p).page_table, first_proc as *const u64, PAGE_SIZE);
+        (*p).size = PAGE_SIZE;
+
+        (*(*p).trap_frame).epc = 0;
+        (*(*p).trap_frame).sp = PAGE_SIZE;
+
+        (*p).state = ProcState::Runnable;
+    }
+}
+
+extern "C" {
+    fn switch(old: *const Context, new: *const Context);
 }
 
 fn sched() {
@@ -229,8 +374,8 @@ fn sched() {
         panicc!("sched interrupt enabled");
     }
 
-    unsafe{
-        switch(&(*p).context,&(*my_cpu()).context);
+    unsafe {
+        switch(&(*p).context, &(*my_cpu()).context);
     }
 }
 
@@ -242,8 +387,13 @@ pub fn yield_cpu() {
     sched();
 }
 
+fn fork_ret() {
+    user_trap_ret();
+}
+
 pub fn scheduler() {
     let c = my_cpu();
+    println!("addr 0x{:x}", first_proc as u64);
 
     loop {
         // avoid dead lock by intr_on()?
@@ -257,6 +407,7 @@ pub fn scheduler() {
                     switch(&(*c).context, &PROC[i].context);
 
                     (*c).proc = null_mut();
+                    print!(".");
                 }
             }
         }

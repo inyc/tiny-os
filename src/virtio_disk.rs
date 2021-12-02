@@ -1,3 +1,5 @@
+use crate::block_cache::Buf;
+use crate::fs::BLOCK_SIZE;
 use crate::riscv::{PAGE_SHIFT, PAGE_SIZE};
 use core::fmt::Write;
 use core::mem::size_of;
@@ -124,6 +126,7 @@ const VIRTIO_BLK_S_OK: u8 = 0;
 const VIRTIO_BLK_S_IOERR: u8 = 1;
 const VIRTIO_BLK_S_UNSUPP: u8 = 2;
 
+#[repr(C)] // addr used by rw
 #[derive(Copy, Clone)]
 struct VirtioBlkReq {
     req_type: u32,
@@ -158,13 +161,6 @@ fn alloc_desc() -> usize {
     QUEUE_SIZE as usize
 }
 
-// do more in xv6
-fn free_desc(i: usize) {
-    unsafe {
-        DISK.is_free[i] = 1;
-    }
-}
-
 fn alloc_3desc(idx: &mut [usize; 3]) -> i32 {
     for i in 0..3 {
         let index = alloc_desc();
@@ -178,6 +174,29 @@ fn alloc_3desc(idx: &mut [usize; 3]) -> i32 {
     }
 
     0
+}
+
+// do more in xv6
+fn free_desc(i: usize) {
+    unsafe {
+        DISK.is_free[i] = 1;
+    }
+}
+
+fn free_chain(mut i: usize) {
+    loop {
+        let flags;
+        let next;
+        unsafe {
+            flags = (*DISK.desc.add(i)).flags;
+            next = (*DISK.desc.add(i)).next;
+        }
+        free_desc(i);
+        match flags & VIRTQ_DESC_F_NEXT {
+            0 => break,
+            _ => i = next as usize,
+        }
+    }
 }
 
 pub fn virtio_disk_init() {
@@ -249,12 +268,6 @@ pub fn virtio_disk_init() {
     }
 }
 
-pub const BLOCK_SIZE: u64 = 1024; // maybe should in fs.rs?
-
-pub struct Buf {
-    pub data: [u8; BLOCK_SIZE as usize],
-}
-
 pub fn virtio_disk_rw(buf: *mut Buf, write: u32) {
     let mut idx: [usize; 3] = [0; 3];
 
@@ -272,7 +285,7 @@ pub fn virtio_disk_rw(buf: *mut Buf, write: u32) {
         };
 
         req.reserved = 0;
-        req.sector = 0; // offset=0 for now
+        req.sector = (*buf).block_no as u64 * (BLOCK_SIZE / 512) as u64;
 
         (*DISK.desc.add(idx[0])).addr = req as *mut VirtioBlkReq as u64;
         (*DISK.desc.add(idx[0])).len = size_of::<VirtioBlkReq>() as u32;
@@ -302,7 +315,13 @@ pub fn virtio_disk_rw(buf: *mut Buf, write: u32) {
         // the value written is the queue index (when..)
         *VIRTIO_MMIO_QUEUE_NOTIFY = 0;
 
-        // wait for intr to say finished...
+        // wait for intr to say finished, just a loop yet
+        let mut timer: u64 = 0;
+        while timer < 1_000_000 {
+            timer += 1;
+        }
+
+        free_chain(idx[0]);
     }
 }
 

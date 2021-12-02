@@ -331,15 +331,13 @@ fn free_proc(p: *mut Proc) {
     }
 }
 
-fn test() {}
-
 extern "C" {
     fn make_syscall();
 }
 
 fn first_proc() {
     unsafe {
-        make_syscall();
+        // make_syscall();
     }
     loop {}
 }

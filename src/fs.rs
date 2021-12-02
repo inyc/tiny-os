@@ -1,4 +1,4 @@
-use crate::block_cache::{bread, brelse, Buf};
+use crate::block_cache::{bread, brelse, bwrite, Buf};
 use crate::param::{NINODE, ROOT_DEV};
 use crate::string::{mem_copy, str_cmp};
 use core::cmp::min;
@@ -7,7 +7,7 @@ use core::mem::size_of;
 use core::ptr::null_mut;
 
 // some troublesome things need to be handled...
-pub const BLOCK_SIZE: u64 = 1024;
+pub const BLOCK_SIZE: u32 = 1024;
 const ROOT_INO: u32 = 1;
 const MAGIC: u16 = 0x4d5a;
 
@@ -71,6 +71,46 @@ pub fn fs_init(dev: u32) {
     }
 
     brelse(b);
+}
+
+const BPERB: u32 = 8 * BLOCK_SIZE; // bits per block
+
+// alloc a block
+fn balloc(dev: u32) -> u32 {
+    unsafe {
+        let zmap_start = 2 + SB.imap_blk_num as u32;
+        for i in 0..SB.zmap_blk_num as usize {
+            let b = bread(dev, zmap_start + i as u32);
+
+            for j in 0..BPERB as usize {
+                let bits = 1 << (j % 8);
+                if (*b).data[j / 8] & bits == 0 {
+                    (*b).data[j / 8] |= bits;
+                    brelse(b);
+                    return i as u32 * BPERB + j as u32;
+                }
+            }
+
+            brelse(b);
+        }
+    }
+
+    panicc!("balloc: no free block");
+}
+
+// free a block
+fn bfree(dev: u32, block_no: u32) {
+    unsafe {
+        let map_bno = 2 + SB.imap_blk_num as u32 + block_no / BPERB;
+        let b = bread(dev, map_bno);
+        let byte_no = (block_no % BPERB / 8) as usize;
+        let bit_no = block_no % BPERB % 8;
+        if (*b).data[byte_no] & 1 << bit_no == 0 {
+            panicc!("bfree: block is free");
+        }
+        (*b).data[byte_no] &= !(1 << bit_no);
+        brelse(b);
+    }
 }
 
 // from https://github.com/Stichting-MINIX-Research-Foundation/minix
@@ -169,6 +209,33 @@ static mut ICACHE: Icache = Icache {
     inode: [InodeMem::new(); NINODE],
 };
 
+// write inode to disk
+pub fn iupdate(inode: *const InodeMem) {
+    unsafe {
+        let b = bread(
+            (*inode).dev,
+            iblock((*inode).ino, 2 + (SB.imap_blk_num + SB.zmap_blk_num) as u32),
+        );
+        let mut dinode =
+            (&mut (*b).data as *mut u8 as *mut InodeDisk).add(((*inode).ino % IPERB) as usize);
+        (*dinode).mode = (*inode).mode;
+        (*dinode).nlink = (*inode).nlink;
+        (*dinode).uid = (*inode).uid;
+        (*dinode).gid = (*inode).gid;
+        (*dinode).fsize = (*inode).fsize;
+        (*dinode).atime = (*inode).atime;
+        (*dinode).mtime = (*inode).mtime;
+        (*dinode).ctime = (*inode).ctime;
+        mem_copy(
+            &mut (*dinode).zone as *mut u32 as *mut u64,
+            &(*inode).zone as *const u32 as *const u64,
+            (size_of::<u32>() * (NDIRECT + 3)) as u64,
+        );
+        bwrite(b);
+        brelse(b);
+    }
+}
+
 // read from disk if necessary
 pub fn iget(dev: u32, ino: u32) -> *mut InodeMem {
     let mut empty_idx = NINODE;
@@ -226,11 +293,15 @@ pub fn iget(dev: u32, ino: u32) -> *mut InodeMem {
 }
 
 // get the addr of the nth block in inode
-// return 0 if not exist
-fn bmap(inode: *mut InodeMem, mut bn: usize) -> u32 {
+// return 0 if not exist and alloc==0
+fn bmap(inode: *mut InodeMem, mut bn: usize, alloc: u32) -> u32 {
     unsafe {
         if bn < NDIRECT {
-            return (*inode).zone[bn as usize];
+            let addr = (*inode).zone[bn as usize];
+            if addr == 0 && alloc != 0 {
+                (*inode).zone[bn as usize] = balloc((*inode).dev);
+            }
+            return addr;
         }
 
         bn -= NDIRECT;
@@ -240,13 +311,24 @@ fn bmap(inode: *mut InodeMem, mut bn: usize) -> u32 {
         if bn < NINDIRECT {
             addr = (*inode).zone[NDIRECT];
             if addr == 0 {
-                return 0;
+                if alloc == 0 {
+                    return 0;
+                }
+
+                addr = balloc((*inode).dev);
+                (*inode).zone[NDIRECT] = addr;
             }
 
             b = bread((*inode).dev, addr);
             ap = &mut (*b).data as *mut u8 as *mut u32;
             addr = *ap.add(bn);
             brelse(b);
+
+            if addr == 0 && alloc != 0 {
+                addr = balloc((*inode).dev);
+                *ap.add(bn) = addr;
+            }
+
             return addr;
         }
 
@@ -254,20 +336,36 @@ fn bmap(inode: *mut InodeMem, mut bn: usize) -> u32 {
         if bn < NDINDIRECT {
             addr = (*inode).zone[NDIRECT + 1];
             if addr == 0 {
-                return 0;
+                if alloc == 0 {
+                    return 0;
+                }
+
+                addr = balloc((*inode).dev);
+                (*inode).zone[NDIRECT + 1] = addr;
             }
 
             b = bread((*inode).dev, addr);
             ap = &mut (*b).data as *mut u8 as *mut u32;
             addr = *ap.add(bn / NINDIRECT);
             if addr == 0 {
-                return 0;
+                if alloc == 0 {
+                    return 0;
+                }
+
+                addr = balloc((*inode).dev);
+                *ap.add(bn / NINDIRECT) = addr;
             }
 
             b = bread((*inode).dev, addr);
             ap = &mut (*b).data as *mut u8 as *mut u32;
             addr = *ap.add(bn % NINDIRECT);
             brelse(b);
+
+            if addr == 0 && alloc != 0 {
+                addr = balloc((*inode).dev);
+                *ap.add(bn % NINDIRECT) = addr;
+            }
+
             return addr;
         }
     }
@@ -295,18 +393,18 @@ pub fn readi(inode: *mut InodeMem, is_uaddr: u32, mut dst: u64, mut off: u32, mu
     let mut data_size;
     let mut block_no;
     while cnt < n {
-        block_no = bmap(inode, off as usize / BLOCK_SIZE as usize);
+        block_no = bmap(inode, (off / BLOCK_SIZE) as usize, 0);
         if block_no == 0 {
             panicc!("readi: block not exist");
         }
         unsafe {
             b = bread((*inode).dev, block_no);
 
-            data_size = min(n - cnt, BLOCK_SIZE as u32 - off % BLOCK_SIZE as u32);
+            data_size = min(n - cnt, BLOCK_SIZE - off % BLOCK_SIZE);
             // not for uaddr yet
             mem_copy(
                 dst as *mut u64,
-                (&mut (*b).data as *mut u8).add(off as usize % BLOCK_SIZE as usize) as *mut u64,
+                (&mut (*b).data as *mut u8).add((off % BLOCK_SIZE) as usize) as *mut u64,
                 data_size as u64,
             );
         }
@@ -316,6 +414,46 @@ pub fn readi(inode: *mut InodeMem, is_uaddr: u32, mut dst: u64, mut off: u32, mu
         off += data_size;
         dst += data_size as u64;
     }
+
+    cnt
+}
+
+// wirte file content in inode
+pub fn writei(inode: *mut InodeMem, is_uaddr: u32, mut src: u64, mut off: u32, mut n: u32) -> u32 {
+    if is_uaddr != 0 {
+        panicc!("writei: not support user addr");
+    }
+
+    let mut cnt: u32 = 0;
+    let mut b: *mut Buf;
+    let mut data_size;
+    let mut block_no;
+    while cnt < n {
+        block_no = bmap(inode, (off / BLOCK_SIZE) as usize, 1);
+        unsafe {
+            b = bread((*inode).dev, block_no);
+            data_size = min(BLOCK_SIZE - off % BLOCK_SIZE, n - cnt);
+            mem_copy(
+                (&mut (*b).data as *mut u8).add((off % BLOCK_SIZE) as usize) as *mut u64,
+                src as *mut u64,
+                data_size as u64,
+            );
+        }
+        bwrite(b);
+        brelse(b);
+
+        cnt += data_size;
+        off += data_size;
+        src += data_size as u64;
+    }
+
+    unsafe {
+        if cnt > (*inode).fsize {
+            (*inode).fsize = cnt;
+        }
+    }
+
+    iupdate(inode);
 
     cnt
 }

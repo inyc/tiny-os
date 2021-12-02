@@ -72,47 +72,29 @@ extern "C" fn kinit() {
     fs::readi(inode, 0, &mut b.data as *mut u8 as u64, 0, 40);
 
     println!("read ok");
-    for i in 0..36 {
+    for i in 0..40 {
         print!("{}", b.data[i] as char);
     }
     println!("");
+
+    b.data[0]='h' as u8;
+    b.data[1]='i' as u8;
+    b.data[2]=',' as u8;
+    fs::writei(inode,0,&mut b.data as *mut u8 as u64,0,40);
+
+    println!("write ok");
+
+    fs::readi(inode, 0, &mut b.data as *mut u8 as u64, 0, 40);
+    for i in 0..40 {
+        print!("{}", b.data[i] as char);
+    }
+    println!(""); 
 
     proc::user_init(); // set first proc
 
     println!("init ok");
 
     proc::scheduler();
-
-    // let mut b = block_cache::Buf {
-    //     data: [0; fs::BLOCK_SIZE as usize],
-    // };
-    // b.data[0] = 1;
-    // virtio_disk::virtio_disk_rw(&mut b, 0);
-    // let mut ii = 0;
-    // loop {
-    //     if ii > 1_000 {
-    //         break;
-    //     }
-    //     ii += 1;
-    // }
-
-    // println!("read ok");
-    // for i in 0..16 {
-    //     print!("{:02x} ", b.data[i]);
-    // }
-    // println!("");
-    // for i in 0..16 {
-    //     print!("{:02x} ", b.data[i + 16]);
-    // }
-    // println!("");
-    // for i in 0..16 {
-    //     print!("{:02x} ", b.data[i + 32]);
-    // }
-    // println!("");
-    // for i in 0..16 {
-    //     print!("{:02x} ", b.data[i + 48]);
-    // }
-    // println!("");
 }
 
 mod assembly;

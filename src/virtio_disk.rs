@@ -285,7 +285,7 @@ pub fn virtio_disk_rw(buf: *mut Buf, write: u32) {
         };
 
         req.reserved = 0;
-        req.sector = (*buf).block_no as u64 * (BLOCK_SIZE / 512);
+        req.sector = (*buf).block_no as u64 * (BLOCK_SIZE / 512) as u64;
 
         (*DISK.desc.add(idx[0])).addr = req as *mut VirtioBlkReq as u64;
         (*DISK.desc.add(idx[0])).len = size_of::<VirtioBlkReq>() as u32;
